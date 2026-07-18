@@ -1,0 +1,6 @@
+{
+  "name": "Mundo Dutra Kids",
+  "description": "E-commerce platform with a virtual mannequin assistant and a merchant management system.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

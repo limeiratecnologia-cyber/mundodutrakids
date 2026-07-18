@@ -1,0 +1,22 @@
+{
+  "collections": {
+    "store_data": {
+      "documentId": "state",
+      "fields": {
+        "adminPasscode": "string",
+        "products": "array",
+        "categories": "array",
+        "orders": "array",
+        "transactions": "array",
+        "shippingNeighborhoods": "array",
+        "shippingType": "string",
+        "shippingFixedCost": "number",
+        "promotions": "array",
+        "avisos": "array",
+        "landpage": "map",
+        "printing": "map",
+        "live": "map"
+      }
+    }
+  }
+}

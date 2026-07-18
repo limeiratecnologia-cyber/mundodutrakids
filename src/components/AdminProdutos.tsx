@@ -1,0 +1,645 @@
+import React, { useState, useMemo } from "react";
+import { motion } from "motion/react";
+import { 
+  Plus, Edit, Trash2, Camera, Sparkles, RefreshCw, 
+  Tag, ListPlus, ToggleLeft, ToggleRight, Check, AlertCircle, X 
+} from "lucide-react";
+import { Product, Category } from "../types";
+
+interface AdminProdutosProps {
+  products: Product[];
+  categories: Category[];
+  onAddProduct: (newProduct: Product) => void;
+  onEditProduct: (updatedProduct: Product) => void;
+  onDeleteProduct: (id: string) => void;
+}
+
+export default function AdminProdutos({ products, categories, onAddProduct, onEditProduct, onDeleteProduct }: AdminProdutosProps) {
+  
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [notification, setNotification] = useState<{ message: string; type: "success" | "error" } | null>(null);
+
+  const triggerNotification = (message: string, type: "success" | "error" = "success") => {
+    setNotification({ message, type });
+    setTimeout(() => {
+      setNotification(null);
+    }, 3500);
+  };
+
+  // Form Fields
+  const [name, setName] = useState("");
+  const [price, setPrice] = useState<number>(0);
+  const [cost, setCost] = useState<number>(0);
+  const [image, setImage] = useState("");
+  const [categoryId, setCategoryId] = useState("");
+  const [age, setAge] = useState("");
+  const [description, setDescription] = useState("");
+  const [status, setStatus] = useState<"ativo" | "inativo">("ativo");
+  
+  // Dynamic size grid stock
+  const [sizeGrid, setSizeGrid] = useState<{ size: string; stock: number }[]>([
+    { size: "P", stock: 5 },
+    { size: "M", stock: 8 },
+    { size: "G", stock: 4 }
+  ]);
+  const [newSizeName, setNewSizeName] = useState("");
+  const [newSizeStock, setNewSizeStock] = useState<number>(5);
+
+  // AI helper trigger states
+  const [generatingDescription, setGeneratingDescription] = useState(false);
+  const [aiImageFeedback, setAiImageFeedback] = useState("");
+  const [analyzingImage, setAnalyzingImage] = useState(false);
+
+  // Sequence code generator helper
+  const nextSequentialCode = useMemo(() => {
+    if (products.length === 0) return "P0001";
+    // Extract numerical suffix
+    const codes = products
+      .map(p => {
+        const num = parseInt(p.code.replace(/\D/g, ""), 10);
+        return isNaN(num) ? 0 : num;
+      })
+      .filter(num => num > 0);
+    const max = codes.length > 0 ? Math.max(...codes) : 0;
+    const nextNum = max + 1;
+    return `P${nextNum.toString().padStart(4, "0")}`;
+  }, [products]);
+
+  // Base64 file converter
+  const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const b64 = reader.result as string;
+        setImage(b64);
+        triggerAiImageAnalysis(b64);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // Trigger Gemini photo analytics (image-suggestions API)
+  const triggerAiImageAnalysis = async (base64Image: string) => {
+    setAnalyzingImage(true);
+    setAiImageFeedback("");
+    try {
+      const response = await fetch("/api/gemini/image-suggestions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          imageData: base64Image,
+          productName: name || "Produto Novo"
+        })
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setAiImageFeedback(data.suggestion);
+      }
+    } catch (e) {
+      setAiImageFeedback("💡 Dica IA: Ilumine mais a foto e use fundo neutro suave para realçar a peça!");
+    } finally {
+      setAnalyzingImage(false);
+    }
+  };
+
+  // Generate perfect descriptions using server side Gemini
+  const triggerAiDescriptionGenerator = async () => {
+    if (!name.trim()) {
+      alert("Por favor, preencha o Nome do produto primeiro para guiar a IA.");
+      return;
+    }
+    setGeneratingDescription(true);
+    try {
+      const sizesText = sizeGrid.map(g => `${g.size} (Estoque: ${g.stock})`).join(", ");
+      const response = await fetch("/api/gemini/describe-product", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          category: categories.find(c => c.id === categoryId)?.name || "Geral",
+          sizeGrid: sizesText,
+          price,
+          extraInfo: age
+        })
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setDescription(data.description);
+      } else {
+        throw new Error("Erro");
+      }
+    } catch (err) {
+      setDescription(`✨ Vestuário Premium ${name}. Caimento impecável, toque de algodão extra macio e design clássico para os pequenos brincarem com plena liberdade.`);
+    } finally {
+      setGeneratingDescription(false);
+    }
+  };
+
+  const handleOpenAddForm = () => {
+    setEditingProduct(null);
+    setName("");
+    setPrice(0);
+    setCost(0);
+    setImage("https://images.unsplash.com/photo-1519457431-44ccd64a579b?q=80&w=400");
+    setCategoryId(categories[0]?.id || "");
+    setAge("Livre / Todos");
+    setDescription("");
+    setStatus("ativo");
+    setSizeGrid([
+      { size: "P", stock: 5 },
+      { size: "M", stock: 8 },
+      { size: "G", stock: 4 }
+    ]);
+    setAiImageFeedback("");
+    setIsFormOpen(true);
+  };
+
+  const handleOpenEditForm = (prod: Product) => {
+    setEditingProduct(prod);
+    setName(prod.name);
+    setPrice(prod.price);
+    setCost(prod.cost);
+    setImage(prod.image);
+    setCategoryId(prod.categoryId);
+    setAge(prod.age);
+    setDescription(prod.description);
+    setStatus(prod.status);
+    setSizeGrid(prod.sizes || []);
+    setAiImageFeedback("");
+    setIsFormOpen(true);
+  };
+
+  const handleAddSizeOption = () => {
+    if (!newSizeName.trim()) return;
+    if (sizeGrid.some(s => s.size.toUpperCase() === newSizeName.trim().toUpperCase())) {
+      triggerNotification("Esse tamanho já está adicionado.", "error");
+      return;
+    }
+    setSizeGrid([...sizeGrid, { size: newSizeName.trim(), stock: newSizeStock }]);
+    setNewSizeName("");
+    setNewSizeStock(5);
+  };
+
+  const handleRemoveSizeOption = (idx: number) => {
+    const updated = [...sizeGrid];
+    updated.splice(idx, 1);
+    setSizeGrid(updated);
+  };
+
+  const handleUpdateSizeStock = (idx: number, stock: number) => {
+    const updated = [...sizeGrid];
+    updated[idx].stock = Math.max(0, stock);
+    setSizeGrid(updated);
+  };
+
+  const handleSubmitForm = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) {
+      triggerNotification("Por favor, digite o nome do produto.", "error");
+      return;
+    }
+
+    if (editingProduct) {
+      const updated: Product = {
+        ...editingProduct,
+        name,
+        price,
+        cost,
+        image,
+        categoryId,
+        age,
+        description,
+        status,
+        sizes: sizeGrid
+      };
+      onEditProduct(updated);
+      triggerNotification("Produto atualizado com sucesso!");
+    } else {
+      const newProduct: Product = {
+        id: `prod-${Date.now()}`,
+        code: nextSequentialCode, // Auto sequential sequence
+        name,
+        price,
+        cost,
+        image,
+        categoryId,
+        age,
+        description,
+        status,
+        createdAt: new Date().toISOString(),
+        sizes: sizeGrid
+      };
+      onAddProduct(newProduct);
+      triggerNotification(`Produto cadastrado e gerado o código sequencial ${nextSequentialCode}!`);
+    }
+
+    setIsFormOpen(false);
+  };
+
+  return (
+    <div className="space-y-6">
+      {notification && (
+        <div className={`p-4 rounded-xl text-xs font-bold border transition-all ${
+          notification.type === "success" 
+            ? "bg-emerald-50 text-emerald-800 border-emerald-200" 
+            : "bg-red-50 text-red-800 border-red-200"
+        }`}>
+          {notification.message}
+        </div>
+      )}
+      
+      {/* Header controls */}
+      <div className="flex justify-between items-center bg-white p-4 rounded-2xl border border-[#e0e0d6] shadow-sm">
+        <div>
+          <h3 className="font-extrabold text-gray-900 text-sm">Controle de Catálogo de Produtos</h3>
+          <p className="text-xs text-gray-500">Cadastre grades, preços, configure estoque e edite com IA.</p>
+        </div>
+        <button
+          onClick={handleOpenAddForm}
+          className="bg-[#5A5A40] hover:bg-[#484833] text-white px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
+        >
+          <Plus className="w-4 h-4" /> Cadastrar Novo Produto
+        </button>
+      </div>
+
+      {/* Form Dialog/Overlay */}
+      {isFormOpen && (
+        <div className="fixed inset-0 bg-black/55 backdrop-blur-xs z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-3xl max-w-3xl w-full p-6 shadow-2xl border border-[#e0e0d6] max-h-[90vh] overflow-y-auto"
+          >
+            <div className="flex justify-between items-center border-b border-[#f0f0e8] pb-3.5 mb-4">
+              <h4 className="font-bold text-gray-900 text-sm">
+                {editingProduct ? `Editar Produto: ${editingProduct.code}` : "Cadastrar Novo Produto"}
+              </h4>
+              <button 
+                type="button" 
+                onClick={() => setIsFormOpen(false)} 
+                className="text-gray-400 hover:text-red-500 hover:bg-red-50 p-1.5 rounded-lg transition-all flex items-center gap-1 text-xs font-bold"
+              >
+                <X className="w-4 h-4" /> Fechar
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitForm} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                
+                {/* Left Inputs */}
+                <div className="space-y-3.5">
+                  <div>
+                    <label className="block text-[10px] uppercase font-bold text-gray-500 mb-1">Nome do Produto *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ex: Camiseta Polo Kids Verde"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      className="w-full px-3 py-2 text-xs bg-gray-50 border border-[#e0e0d6] rounded-xl focus:outline-none focus:border-[#5A5A40]"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[10px] uppercase font-bold text-gray-500 mb-1">Preço de Venda (R$) *</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        required
+                        value={price}
+                        onChange={(e) => setPrice(parseFloat(e.target.value) || 0)}
+                        className="w-full px-3 py-2 text-xs bg-gray-50 border border-[#e0e0d6] rounded-xl focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] uppercase font-bold text-gray-500 mb-1">Custo de Compra (R$)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={cost}
+                        onChange={(e) => setCost(parseFloat(e.target.value) || 0)}
+                        className="w-full px-3 py-2 text-xs bg-gray-50 border border-[#e0e0d6] rounded-xl focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[10px] uppercase font-bold text-gray-500 mb-1">Categoria *</label>
+                      <select
+                        value={categoryId}
+                        required
+                        onChange={(e) => setCategoryId(e.target.value)}
+                        className="w-full px-3 py-2 text-xs bg-gray-50 border border-[#e0e0d6] rounded-xl focus:outline-none"
+                      >
+                        <option value="">Selecione...</option>
+                        {categories.map(c => (
+                          <option key={c.id} value={c.id}>{c.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] uppercase font-bold text-gray-500 mb-1">Faixa de Idade/Recomendação</label>
+                      <input
+                        type="text"
+                        placeholder="Ex: 2 a 4 anos"
+                        value={age}
+                        onChange={(e) => setAge(e.target.value)}
+                        className="w-full px-3 py-2 text-xs bg-gray-50 border border-[#e0e0d6] rounded-xl focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] uppercase font-bold text-gray-500 mb-1">Status de Visibilidade</label>
+                    <div className="flex gap-4 items-center bg-gray-50 p-2.5 rounded-xl border border-gray-200">
+                      <span className="text-xs text-gray-600 font-medium">Exibir Produto na Loja?</span>
+                      <button
+                        type="button"
+                        onClick={() => setStatus(status === "ativo" ? "inativo" : "ativo")}
+                        className="ml-auto"
+                      >
+                        {status === "ativo" ? (
+                          <ToggleRight className="w-9 h-9 text-[#5A5A40]" />
+                        ) : (
+                          <ToggleLeft className="w-9 h-9 text-gray-300" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right Inputs: Photo and AI Assistant */}
+                <div className="space-y-3.5">
+                  <div>
+                    <label className="block text-[10px] uppercase font-bold text-gray-500 mb-1">Foto do Produto (Upload ou URL)</label>
+                    <div className="flex gap-2 items-center bg-gray-50 p-3 rounded-2xl border border-[#e0e0d6]">
+                      <img 
+                        src={image || "https://images.unsplash.com/photo-1519457431-44ccd64a579b?q=80&w=150"} 
+                        className="w-16 h-16 rounded-xl object-cover border border-gray-300" 
+                        alt="" 
+                      />
+                      <div className="flex-1 space-y-1.5">
+                        <input
+                          type="text"
+                          placeholder="URL da Imagem..."
+                          value={image}
+                          onChange={(e) => setImage(e.target.value)}
+                          className="w-full px-2.5 py-1 text-[10px] bg-white border border-gray-200 rounded focus:outline-none"
+                        />
+                        <label className="cursor-pointer bg-[#5A5A40]/10 hover:bg-[#5A5A40]/20 text-[#5A5A40] text-[10px] font-bold px-2 py-1 rounded inline-block transition">
+                          <Camera className="w-3 h-3 inline mr-1" /> Fazer Upload Foto
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={handleImageFileChange}
+                            className="hidden"
+                          />
+                        </label>
+                      </div>
+                    </div>
+
+                    {/* Gemini Vision suggestion response */}
+                    {analyzingImage && (
+                      <p className="text-[10px] text-gray-400 mt-1 flex items-center gap-1">
+                        <RefreshCw className="w-3 h-3 animate-spin" /> IA analisando qualidade da imagem...
+                      </p>
+                    )}
+                    {aiImageFeedback && (
+                      <div className="mt-1.5 bg-[#5A5A40]/5 p-2 rounded-lg border border-[#5A5A40]/15 text-[10px] text-gray-600 leading-relaxed">
+                        {aiImageFeedback}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Size Options Grid Stock */}
+                  <div className="space-y-1.5 bg-[#fbfbfa] p-3 rounded-2xl border border-[#e0e0d6]/70">
+                    <span className="text-[10px] uppercase font-bold text-gray-500 block">Grade de Tamanhos & Estoque:</span>
+                    
+                    <div className="max-h-24 overflow-y-auto space-y-1 pr-1">
+                      {sizeGrid.map((sz, idx) => (
+                        <div key={idx} className="flex items-center justify-between bg-white px-2 py-1.5 rounded-lg border border-gray-100 text-xs">
+                          <span className="font-bold text-gray-700">{sz.size}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] text-gray-400">Estoque:</span>
+                            <input
+                              type="number"
+                              value={sz.stock}
+                              onChange={(e) => handleUpdateSizeStock(idx, parseInt(e.target.value, 10) || 0)}
+                              className="w-12 text-center p-0.5 border border-gray-200 rounded text-xs font-mono font-bold"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveSizeOption(idx)}
+                              className="text-red-400 hover:text-red-600 hover:bg-red-50 p-1 rounded transition"
+                              title="Remover tamanho"
+                            >
+                              <X className="w-3.5 h-3.5 font-bold" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="flex gap-1.5 pt-2 border-t border-gray-100">
+                      <input
+                        type="text"
+                        placeholder="Tam (Ex: G, 4 anos)"
+                        value={newSizeName}
+                        onChange={(e) => setNewSizeName(e.target.value)}
+                        className="flex-1 px-2.5 py-1 text-[11px] bg-white border border-gray-200 rounded-lg focus:outline-none"
+                      />
+                      <input
+                        type="number"
+                        placeholder="Estoque"
+                        value={newSizeStock}
+                        onChange={(e) => setNewSizeStock(parseInt(e.target.value, 10) || 0)}
+                        className="w-14 text-center px-1.5 py-1 text-[11px] bg-white border border-gray-200 rounded-lg focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleAddSizeOption}
+                        className="bg-[#5A5A40] text-white text-[10px] px-2.5 py-1 rounded-lg font-bold hover:bg-[#484833]"
+                      >
+                        + Add Size
+                      </button>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+
+              {/* Description & AI generation block */}
+              <div className="space-y-1">
+                <div className="flex justify-between items-center">
+                  <label className="block text-[10px] uppercase font-bold text-gray-500">Descrição do Produto (Para a Loja)</label>
+                  <button
+                    type="button"
+                    onClick={triggerAiDescriptionGenerator}
+                    disabled={generatingDescription}
+                    className="text-[10px] font-bold text-[#5A5A40] hover:text-[#484833] flex items-center gap-1 bg-[#5A5A40]/10 px-2 py-1 rounded transition disabled:opacity-50"
+                  >
+                    {generatingDescription ? (
+                      <>
+                        <RefreshCw className="w-3 h-3 animate-spin" /> Escrevendo...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-3 h-3" /> Gerar Descrição com IA ✨
+                      </>
+                    )}
+                  </button>
+                </div>
+                <textarea
+                  placeholder="Descreva detalhes como material, estilo, ocasiões de uso..."
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  className="w-full px-3 py-2 text-xs bg-gray-50 border border-[#e0e0d6] rounded-xl focus:outline-none focus:border-[#5A5A40] h-20 resize-none"
+                />
+              </div>
+
+              <div className="pt-4 border-t border-[#f0f0e8] flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsFormOpen(false)}
+                  className="px-4 py-2 border border-gray-200 text-gray-600 rounded-xl text-xs font-semibold hover:bg-gray-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-[#5A5A40] text-white rounded-xl text-xs font-bold hover:bg-[#484833] transition"
+                >
+                  ✓ Salvar Alterações
+                </button>
+              </div>
+            </form>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Products Grid list */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {products.map((prod) => {
+          const totalStock = prod.sizes.reduce((s, x) => s + x.stock, 0);
+          const isInactive = prod.status === "inativo";
+
+          return (
+            <div
+              key={prod.id}
+              className={`rounded-2xl border transition shadow-sm overflow-hidden flex flex-col justify-between ${
+                isInactive 
+                  ? "bg-[#ffebeb] border-red-200 opacity-80" 
+                  : "bg-white border-[#e0e0d6]"
+              }`}
+            >
+              {/* Product top image area */}
+              <div className="aspect-[16/11] relative bg-[#f9f9f5]">
+                <img src={prod.image} className="w-full h-full object-cover" alt="" />
+                
+                {/* Code sequential badge */}
+                <span className="absolute top-2 left-2 bg-black/60 text-white text-[9px] font-mono px-2 py-0.5 rounded">
+                  {prod.code}
+                </span>
+
+                {/* Status tag */}
+                {isInactive ? (
+                  <span className="absolute top-2 right-2 bg-red-600 text-white text-[9px] font-extrabold uppercase px-2 py-0.5 rounded shadow">
+                    INATIVO
+                  </span>
+                ) : (
+                  <span className="absolute top-2 right-2 bg-green-600 text-white text-[9px] font-bold px-2 py-0.5 rounded shadow">
+                    ATIVO
+                  </span>
+                )}
+              </div>
+
+              {/* Product Details body */}
+              <div className="p-3.5 flex-1 flex flex-col justify-between space-y-3">
+                <div>
+                  <h4 className={`font-extrabold text-sm text-gray-900 ${isInactive ? "line-through text-red-700" : ""}`}>
+                    {prod.name}
+                  </h4>
+                  <p className="text-[10px] text-gray-400 mt-0.5">
+                    Categoria: {categories.find(c => c.id === prod.categoryId)?.name || "Geral"}
+                  </p>
+                </div>
+
+                {/* Size Stock grid preview */}
+                <div className="space-y-1">
+                  <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wider">Tamanhos e Estoque:</p>
+                  <div className="flex flex-wrap gap-1">
+                    {prod.sizes.map((sz, i) => (
+                      <span key={i} className={`text-[9px] px-1.5 py-0.5 rounded font-mono font-bold ${sz.stock === 0 ? "bg-red-100 text-red-500" : "bg-gray-100 text-gray-600"}`}>
+                        {sz.size}: {sz.stock}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Pricing info */}
+                <div className="flex flex-col gap-2 pt-2 border-t border-gray-100">
+                  <div className="flex justify-between items-baseline">
+                    <div className="text-left">
+                      <span className="text-[9px] text-gray-400 block">Custo: R$ {prod.cost.toFixed(2)}</span>
+                      <span className="text-xs font-bold text-gray-800">Preço: R$ {prod.price.toFixed(2)}</span>
+                    </div>
+                    
+                    {deleteConfirmId !== prod.id && (
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => handleOpenEditForm(prod)}
+                          className="p-1 text-[#5A5A40] hover:bg-[#5A5A40]/10 rounded transition"
+                          title="Editar"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => setDeleteConfirmId(prod.id)}
+                          className="p-1 text-red-500 hover:bg-red-50 rounded transition"
+                          title="Deletar"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {deleteConfirmId === prod.id && (
+                    <div className="flex items-center gap-2 bg-red-50 p-1.5 rounded-lg border border-red-100 animate-pulse justify-between mt-1">
+                      <span className="text-[9px] font-bold text-red-600 uppercase">Excluir produto?</span>
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => {
+                            onDeleteProduct(prod.id);
+                            setDeleteConfirmId(null);
+                            triggerNotification(`Produto ${prod.name} excluído.`);
+                          }}
+                          className="bg-red-600 hover:bg-red-700 text-white px-2 py-0.5 rounded text-[9px] font-bold transition"
+                        >
+                          Sim
+                        </button>
+                        <button
+                          onClick={() => setDeleteConfirmId(null)}
+                          className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-2 py-0.5 rounded text-[9px] font-bold transition"
+                        >
+                          Não
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+            </div>
+          );
+        })}
+      </div>
+
+    </div>
+  );
+}
