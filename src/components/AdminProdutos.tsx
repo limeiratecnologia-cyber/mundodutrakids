@@ -5,6 +5,7 @@ import {
   Tag, ListPlus, ToggleLeft, ToggleRight, Check, AlertCircle, X 
 } from "lucide-react";
 import { Product, Category } from "../types";
+import { compressImage } from "../utils/imageCompressor";
 
 interface AdminProdutosProps {
   products: Product[];
@@ -68,37 +69,42 @@ export default function AdminProdutos({ products, categories, onAddProduct, onEd
     return `P${nextNum.toString().padStart(4, "0")}`;
   }, [products]);
 
-  // Base64 file converter for main image
-  const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Base64 file converter for main image (with compression)
+  const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const b64 = reader.result as string;
-        setImage(b64);
-        if (!images.includes(b64)) {
-          setImages(prev => [...prev, b64]);
+      try {
+        const compressedB64 = await compressImage(file, 600, 600, 0.7);
+        setImage(compressedB64);
+        if (!images.includes(compressedB64)) {
+          setImages(prev => [...prev, compressedB64]);
         }
-        triggerAiImageAnalysis(b64);
-      };
-      reader.readAsDataURL(file);
+        triggerAiImageAnalysis(compressedB64);
+      } catch (err) {
+        console.error("Error compressing image:", err);
+        triggerNotification("Erro ao processar imagem.", "error");
+      }
     }
   };
 
-  // Base64 file converter for multiple images
-  const handleMultipleImagesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Base64 file converter for multiple images (with compression)
+  const handleMultipleImagesChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files && files.length > 0) {
       const fileList = Array.from(files);
       const loadedImages: string[] = [];
       let count = 0;
-      fileList.forEach((file: File) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          const b64 = reader.result as string;
-          loadedImages.push(b64);
-          count++;
-          if (count === fileList.length) {
+      
+      for (const file of fileList) {
+        try {
+          const compressedB64 = await compressImage(file as File, 600, 600, 0.7);
+          loadedImages.push(compressedB64);
+        } catch (err) {
+          console.error("Error compressing image in batch:", err);
+        }
+        count++;
+        if (count === fileList.length) {
+          if (loadedImages.length > 0) {
             setImages(prev => {
               const updated = [...prev, ...loadedImages];
               if (updated.length > 0 && !image) {
@@ -107,14 +113,14 @@ export default function AdminProdutos({ products, categories, onAddProduct, onEd
               return updated;
             });
             triggerAiImageAnalysis(loadedImages[0]);
-            triggerNotification(`${loadedImages.length} fotos carregadas!`);
+            triggerNotification(`${loadedImages.length} fotos compactadas e carregadas! 📸`);
+          } else {
+            triggerNotification("Erro ao processar fotos.", "error");
           }
-        };
-        reader.readAsDataURL(file);
-      });
+        }
+      }
     }
   };
-
   const handleRemoveImage = (index: number) => {
     const updated = images.filter((_, i) => i !== index);
     setImages(updated);

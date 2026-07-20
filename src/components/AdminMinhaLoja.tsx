@@ -7,6 +7,7 @@ import {
   SystemState, NeighborhoodShipping, Promotion, Aviso, 
   LandpageConfig, PrintingConfig 
 } from "../types";
+import { compressImage } from "../utils/imageCompressor";
 
 interface AdminMinhaLojaProps {
   state: SystemState;
@@ -24,12 +25,25 @@ export default function AdminMinhaLoja({ state, onUpdateState }: AdminMinhaLojaP
     }
   }, [state, hasChanges]);
 
-  const updateLocalState = (newStateUpdates: Partial<SystemState>) => {
-    setLocalState((prev) => ({
-      ...prev,
-      ...newStateUpdates
-    }));
-    setHasChanges(true);
+  const updateLocalState = (newStateUpdates: Partial<SystemState>, isTyping = false) => {
+    setLocalState((prev) => {
+      const next = { ...prev, ...newStateUpdates };
+      if (!isTyping) {
+        onUpdateState(newStateUpdates);
+        setHasChanges(false);
+      } else {
+        setHasChanges(true);
+      }
+      return next;
+    });
+  };
+
+  const handleBlurSave = () => {
+    if (hasChanges) {
+      onUpdateState(localState);
+      setHasChanges(false);
+      triggerNotification("Alterações salvas automaticamente! ⚡", "success");
+    }
   };
 
   const handleDiscardChanges = () => {
@@ -154,33 +168,36 @@ export default function AdminMinhaLoja({ state, onUpdateState }: AdminMinhaLojaP
   };
 
   // --- Handlers Avisos ---
-  const handleAvisoImageUpload = (e: React.ChangeEvent<HTMLInputElement>, target: "new" | "edit") => {
+  const handleAvisoImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, target: "new" | "edit") => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const b64 = reader.result as string;
+      try {
+        const compressed = await compressImage(file, 500, 500, 0.7);
         if (target === "new") {
-          setNewAvisoImage(b64);
+          setNewAvisoImage(compressed);
         } else {
-          setEditingAvisoImage(b64);
+          setEditingAvisoImage(compressed);
         }
-      };
-      reader.readAsDataURL(file);
+        triggerNotification("Imagem do aviso processada com sucesso! 📸");
+      } catch (err) {
+        console.error(err);
+        triggerNotification("Erro ao processar imagem", "error");
+      }
     }
   };
 
-  const handlePwaIconUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePwaIconUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const b64 = reader.result as string;
-        const updatedPwa = { ...(localState.pwa || {}), logoUrl: b64 } as any;
+      try {
+        const compressed = await compressImage(file, 256, 256, 0.7);
+        const updatedPwa = { ...(localState.pwa || {}), logoUrl: compressed } as any;
         updateLocalState({ pwa: updatedPwa });
-        triggerNotification("Ícone do PWA atualizado no rascunho!");
-      };
-      reader.readAsDataURL(file);
+        triggerNotification("Ícone do PWA atualizado! 📱");
+      } catch (err) {
+        console.error(err);
+        triggerNotification("Erro ao processar imagem", "error");
+      }
     }
   };
 
@@ -241,23 +258,23 @@ export default function AdminMinhaLoja({ state, onUpdateState }: AdminMinhaLojaP
   };
 
   // --- Helper to update Landpage sub-fields ---
-  const updateLandpageField = (field: keyof LandpageConfig, value: any) => {
+  const updateLandpageField = (field: keyof LandpageConfig, value: any, isTyping = false) => {
     updateLocalState({
       landpage: {
         ...landpage,
         [field]: value
       }
-    });
+    }, isTyping);
   };
 
   // --- Helper to update Printing sub-fields ---
-  const updatePrintingField = (field: keyof PrintingConfig, value: any) => {
+  const updatePrintingField = (field: keyof PrintingConfig, value: any, isTyping = false) => {
     updateLocalState({
       printing: {
         ...printing,
         [field]: value
       }
-    });
+    }, isTyping);
   };
 
   return (
@@ -354,7 +371,8 @@ export default function AdminMinhaLoja({ state, onUpdateState }: AdminMinhaLojaP
                 <input
                   type="text"
                   value={landpage.heroTitle}
-                  onChange={(e) => updateLandpageField("heroTitle", e.target.value)}
+                  onChange={(e) => updateLandpageField("heroTitle", e.target.value, true)}
+                  onBlur={handleBlurSave}
                   className="w-full text-xs px-3 py-2 bg-gray-50 border border-[#e0e0d6] rounded-xl focus:outline-none"
                 />
               </div>
@@ -364,7 +382,8 @@ export default function AdminMinhaLoja({ state, onUpdateState }: AdminMinhaLojaP
                 <input
                   type="text"
                   value={landpage.welcomeMessage}
-                  onChange={(e) => updateLandpageField("welcomeMessage", e.target.value)}
+                  onChange={(e) => updateLandpageField("welcomeMessage", e.target.value, true)}
+                  onBlur={handleBlurSave}
                   className="w-full text-xs px-3 py-2 bg-gray-50 border border-[#e0e0d6] rounded-xl"
                 />
               </div>
@@ -373,7 +392,8 @@ export default function AdminMinhaLoja({ state, onUpdateState }: AdminMinhaLojaP
                 <label className="block text-[10px] uppercase font-bold text-gray-400 mb-1">Slogan Principal (Hero Subtitle)</label>
                 <textarea
                   value={landpage.heroSubtitle}
-                  onChange={(e) => updateLandpageField("heroSubtitle", e.target.value)}
+                  onChange={(e) => updateLandpageField("heroSubtitle", e.target.value, true)}
+                  onBlur={handleBlurSave}
                   className="w-full text-xs px-3 py-2 bg-gray-50 border border-[#e0e0d6] rounded-xl h-16 resize-none"
                 />
                       {/* --- LOGO, FAVICON & BANNER UPLOADS --- */}
@@ -402,15 +422,17 @@ export default function AdminMinhaLoja({ state, onUpdateState }: AdminMinhaLojaP
                       <input
                         type="file"
                         accept="image/*"
-                        onChange={(e) => {
+                        onChange={async (e) => {
                           const file = e.target.files?.[0];
                           if (file) {
-                            const reader = new FileReader();
-                            reader.onloadend = () => {
-                              updateLandpageField("logoImage", reader.result as string);
-                              triggerNotification("Logo atualizada via upload!");
-                            };
-                            reader.readAsDataURL(file);
+                            try {
+                              const compressed = await compressImage(file, 300, 300, 0.7);
+                              updateLandpageField("logoImage", compressed);
+                              triggerNotification("Logo atualizada via upload! 🛍️");
+                            } catch (err) {
+                              console.error(err);
+                              triggerNotification("Erro ao processar imagem", "error");
+                            }
                           }
                         }}
                         className="hidden"
@@ -442,15 +464,17 @@ export default function AdminMinhaLoja({ state, onUpdateState }: AdminMinhaLojaP
                       <input
                         type="file"
                         accept="image/*"
-                        onChange={(e) => {
+                        onChange={async (e) => {
                           const file = e.target.files?.[0];
                           if (file) {
-                            const reader = new FileReader();
-                            reader.onloadend = () => {
-                              updateLandpageField("faviconImage", reader.result as string);
-                              triggerNotification("Favicon atualizado via upload!");
-                            };
-                            reader.readAsDataURL(file);
+                            try {
+                              const compressed = await compressImage(file, 64, 64, 0.7);
+                              updateLandpageField("faviconImage", compressed);
+                              triggerNotification("Favicon atualizado via upload! 🌐");
+                            } catch (err) {
+                              console.error(err);
+                              triggerNotification("Erro ao processar imagem", "error");
+                            }
                           }
                         }}
                         className="hidden"
@@ -539,13 +563,13 @@ export default function AdminMinhaLoja({ state, onUpdateState }: AdminMinhaLojaP
                       <input
                         type="file"
                         accept="image/*"
-                        onChange={(e) => {
+                        onChange={async (e) => {
                           const file = e.target.files?.[0];
                           if (file) {
-                            const reader = new FileReader();
-                            reader.onloadend = () => {
+                            try {
+                              const compressed = await compressImage(file, 800, 800, 0.7);
                               const list = landpage.bannerImages || [landpage.bannerImage];
-                              const nextList = [...list, reader.result as string];
+                              const nextList = [...list, compressed];
                               updateLocalState({
                                 landpage: {
                                   ...landpage,
@@ -553,9 +577,11 @@ export default function AdminMinhaLoja({ state, onUpdateState }: AdminMinhaLojaP
                                   bannerImage: nextList[0]
                                 }
                               });
-                              triggerNotification("Banner adicionado via upload!");
-                            };
-                            reader.readAsDataURL(file);
+                              triggerNotification("Banner adicionado via upload! 📸");
+                            } catch (err) {
+                              console.error(err);
+                              triggerNotification("Erro ao processar banner", "error");
+                            }
                           }
                         }}
                         className="hidden"
@@ -585,7 +611,8 @@ export default function AdminMinhaLoja({ state, onUpdateState }: AdminMinhaLojaP
                           type="text"
                           placeholder="👗"
                           value={landpage.bannerTagIcon || ""}
-                          onChange={(e) => updateLandpageField("bannerTagIcon", e.target.value)}
+                          onChange={(e) => updateLandpageField("bannerTagIcon", e.target.value, true)}
+                          onBlur={handleBlurSave}
                           className="w-full text-xs px-3 py-1.5 bg-gray-50 border border-[#e0e0d6] rounded-xl focus:outline-none text-center font-bold"
                         />
                       </div>
@@ -595,7 +622,8 @@ export default function AdminMinhaLoja({ state, onUpdateState }: AdminMinhaLojaP
                           type="text"
                           placeholder="Moda Infantil Premium"
                           value={landpage.bannerTagText || ""}
-                          onChange={(e) => updateLandpageField("bannerTagText", e.target.value)}
+                          onChange={(e) => updateLandpageField("bannerTagText", e.target.value, true)}
+                          onBlur={handleBlurSave}
                           className="w-full text-xs px-3 py-1.5 bg-gray-50 border border-[#e0e0d6] rounded-xl focus:outline-none"
                         />
                       </div>
@@ -651,7 +679,8 @@ export default function AdminMinhaLoja({ state, onUpdateState }: AdminMinhaLojaP
                         type="text"
                         placeholder="Ex: ✨ 🧸 Mundo Feliz Kids • Nova Coleção"
                         value={landpage.topBadgeText || ""}
-                        onChange={(e) => updateLandpageField("topBadgeText", e.target.value)}
+                        onChange={(e) => updateLandpageField("topBadgeText", e.target.value, true)}
+                        onBlur={handleBlurSave}
                         className="w-full text-xs px-3 py-1.5 bg-white border border-[#e0e0d6] rounded-xl focus:outline-none"
                       />
                     </div>
@@ -662,7 +691,8 @@ export default function AdminMinhaLoja({ state, onUpdateState }: AdminMinhaLojaP
                         type="text"
                         placeholder="🌸"
                         value={landpage.badge1Icon || ""}
-                        onChange={(e) => updateLandpageField("badge1Icon", e.target.value)}
+                        onChange={(e) => updateLandpageField("badge1Icon", e.target.value, true)}
+                        onBlur={handleBlurSave}
                         className="w-full text-xs px-3 py-1.5 bg-white border border-[#e0e0d6] rounded-xl focus:outline-none text-center font-bold"
                       />
                       <label className="block text-[8px] uppercase font-bold text-gray-400 mt-1.5 mb-1">Selo 1 - Texto</label>
@@ -670,7 +700,8 @@ export default function AdminMinhaLoja({ state, onUpdateState }: AdminMinhaLojaP
                         type="text"
                         placeholder="100% Algodão"
                         value={landpage.badge1Text || ""}
-                        onChange={(e) => updateLandpageField("badge1Text", e.target.value)}
+                        onChange={(e) => updateLandpageField("badge1Text", e.target.value, true)}
+                        onBlur={handleBlurSave}
                         className="w-full text-xs px-3 py-1.5 bg-white border border-[#e0e0d6] rounded-xl focus:outline-none"
                       />
                     </div>
@@ -681,7 +712,8 @@ export default function AdminMinhaLoja({ state, onUpdateState }: AdminMinhaLojaP
                         type="text"
                         placeholder="☁️"
                         value={landpage.badge2Icon || ""}
-                        onChange={(e) => updateLandpageField("badge2Icon", e.target.value)}
+                        onChange={(e) => updateLandpageField("badge2Icon", e.target.value, true)}
+                        onBlur={handleBlurSave}
                         className="w-full text-xs px-3 py-1.5 bg-white border border-[#e0e0d6] rounded-xl focus:outline-none text-center font-bold"
                       />
                       <label className="block text-[8px] uppercase font-bold text-gray-400 mt-1.5 mb-1">Selo 2 - Texto</label>
@@ -689,7 +721,8 @@ export default function AdminMinhaLoja({ state, onUpdateState }: AdminMinhaLojaP
                         type="text"
                         placeholder="Toque Macio"
                         value={landpage.badge2Text || ""}
-                        onChange={(e) => updateLandpageField("badge2Text", e.target.value)}
+                        onChange={(e) => updateLandpageField("badge2Text", e.target.value, true)}
+                        onBlur={handleBlurSave}
                         className="w-full text-xs px-3 py-1.5 bg-white border border-[#e0e0d6] rounded-xl focus:outline-none"
                       />
                     </div>
@@ -700,7 +733,8 @@ export default function AdminMinhaLoja({ state, onUpdateState }: AdminMinhaLojaP
                         type="text"
                         placeholder="🍼"
                         value={landpage.badge3Icon || ""}
-                        onChange={(e) => updateLandpageField("badge3Icon", e.target.value)}
+                        onChange={(e) => updateLandpageField("badge3Icon", e.target.value, true)}
+                        onBlur={handleBlurSave}
                         className="w-full text-xs px-3 py-1.5 bg-white border border-[#e0e0d6] rounded-xl focus:outline-none text-center font-bold"
                       />
                       <label className="block text-[8px] uppercase font-bold text-gray-400 mt-1.5 mb-1">Selo 3 - Texto</label>
@@ -708,7 +742,8 @@ export default function AdminMinhaLoja({ state, onUpdateState }: AdminMinhaLojaP
                         type="text"
                         placeholder="Hipoalergênico"
                         value={landpage.badge3Text || ""}
-                        onChange={(e) => updateLandpageField("badge3Text", e.target.value)}
+                        onChange={(e) => updateLandpageField("badge3Text", e.target.value, true)}
+                        onBlur={handleBlurSave}
                         className="w-full text-xs px-3 py-1.5 bg-white border border-[#e0e0d6] rounded-xl focus:outline-none"
                       />
                     </div>
@@ -1534,14 +1569,17 @@ export default function AdminMinhaLoja({ state, onUpdateState }: AdminMinhaLojaP
                       <input
                         type="file"
                         accept="image/*"
-                        onChange={(e) => {
+                        onChange={async (e) => {
                           const file = e.target.files?.[0];
                           if (file) {
-                            const reader = new FileReader();
-                            reader.onloadend = () => {
-                              updatePrintingField("logoUrl", reader.result as string);
-                            };
-                            reader.readAsDataURL(file);
+                            try {
+                              const compressed = await compressImage(file, 300, 300, 0.7);
+                              updatePrintingField("logoUrl", compressed);
+                              triggerNotification("Logo do recibo atualizada! 🖨️");
+                            } catch (err) {
+                              console.error(err);
+                              triggerNotification("Erro ao processar logo do recibo", "error");
+                            }
                           }
                         }}
                         className="hidden"
@@ -1555,7 +1593,8 @@ export default function AdminMinhaLoja({ state, onUpdateState }: AdminMinhaLojaP
                 <label className="block text-[10px] uppercase font-bold text-gray-400 mb-1">Cabeçalho do Recibo (TIRAR CABEÇALHO can be done by blanking this)</label>
                 <textarea
                   value={printing.headerText}
-                  onChange={(e) => updatePrintingField("headerText", e.target.value)}
+                  onChange={(e) => updatePrintingField("headerText", e.target.value, true)}
+                  onBlur={handleBlurSave}
                   className="w-full text-xs font-mono p-2.5 bg-gray-50 border border-[#e0e0d6] rounded-xl h-20"
                 />
               </div>
@@ -1564,7 +1603,8 @@ export default function AdminMinhaLoja({ state, onUpdateState }: AdminMinhaLojaP
                 <label className="block text-[10px] uppercase font-bold text-gray-400 mb-1">Rodapé do Recibo</label>
                 <textarea
                   value={printing.footerText}
-                  onChange={(e) => updatePrintingField("footerText", e.target.value)}
+                  onChange={(e) => updatePrintingField("footerText", e.target.value, true)}
+                  onBlur={handleBlurSave}
                   className="w-full text-xs font-mono p-2.5 bg-gray-50 border border-[#e0e0d6] rounded-xl h-20"
                 />
               </div>
@@ -1657,8 +1697,9 @@ export default function AdminMinhaLoja({ state, onUpdateState }: AdminMinhaLojaP
                     value={pwa?.name || "Mundo Dutra Kids"}
                     onChange={(e) => {
                       const updatedPwa = { ...(pwa || {}), name: e.target.value } as any;
-                      updateLocalState({ pwa: updatedPwa });
+                      updateLocalState({ pwa: updatedPwa }, true);
                     }}
+                    onBlur={handleBlurSave}
                     className="w-full text-xs px-3 py-2 bg-white border border-[#e0e0d6] rounded-xl focus:outline-none focus:border-[#5A5A40]"
                     placeholder="Ex: Mundo Dutra Kids"
                   />
@@ -1671,8 +1712,9 @@ export default function AdminMinhaLoja({ state, onUpdateState }: AdminMinhaLojaP
                     value={pwa?.shortName || "Dutra Kids"}
                     onChange={(e) => {
                       const updatedPwa = { ...(pwa || {}), shortName: e.target.value } as any;
-                      updateLocalState({ pwa: updatedPwa });
+                      updateLocalState({ pwa: updatedPwa }, true);
                     }}
+                    onBlur={handleBlurSave}
                     className="w-full text-xs px-3 py-2 bg-white border border-[#e0e0d6] rounded-xl focus:outline-none focus:border-[#5A5A40]"
                     placeholder="Ex: Dutra Kids"
                   />

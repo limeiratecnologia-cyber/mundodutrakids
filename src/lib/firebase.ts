@@ -75,13 +75,34 @@ async function testConnection() {
 }
 testConnection();
 
+function cleanUndefined(obj: any): any {
+  if (obj === null || obj === undefined) {
+    return null;
+  }
+  if (Array.isArray(obj)) {
+    return obj.map(cleanUndefined);
+  }
+  if (typeof obj === "object") {
+    const res: any = {};
+    for (const key of Object.keys(obj)) {
+      const val = obj[key];
+      if (val !== undefined) {
+        res[key] = cleanUndefined(val);
+      }
+    }
+    return res;
+  }
+  return obj;
+}
+
 /**
  * Saves the entire SystemState to Firebase Firestore
  */
 export async function saveStateToFirebase(state: any) {
   try {
     const docRef = doc(db, STATE_DOC_PATH);
-    await setDoc(docRef, state);
+    const cleanedState = cleanUndefined(state);
+    await setDoc(docRef, cleanedState);
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, STATE_DOC_PATH);
   }
