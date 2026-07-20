@@ -80,34 +80,8 @@ const defaultProducts: Product[] = [
   }
 ];
 
-export const getInitialState = (): SystemState => {
-  const stored = localStorage.getItem("mundo_dutra_kids_state");
-  if (stored) {
-    try {
-      const parsed = JSON.parse(stored);
-      // Ensure key sections exist if structure evolved
-      if (parsed.products && parsed.categories && parsed.orders) {
-        if (!parsed.adminPasscode) {
-          parsed.adminPasscode = "9310";
-        }
-        if (!parsed.pwa) {
-          parsed.pwa = {
-            name: "Mundo Dutra Kids",
-            shortName: "Dutra Kids",
-            logoUrl: "https://images.unsplash.com/photo-1596461404969-9ae70f2830c1?q=80&w=200&auto=format&fit=crop",
-            themeColor: "#5A5A40",
-            displayMode: "standalone"
-          };
-        }
-        return parsed as SystemState;
-      }
-    } catch (e) {
-      console.error("Error reading localStorage state:", e);
-    }
-  }
-
-  // Create standard seed
-  const initialState: SystemState = {
+export const getDefaultState = (): SystemState => {
+  return {
     adminPasscode: "9310",
     products: defaultProducts,
     categories: defaultCategories,
@@ -217,7 +191,7 @@ export const getInitialState = (): SystemState => {
       logoUrl: ""
     },
     live: {
-      active: true,
+      active: false, // Default is false to prevent live turning on automatically on load or reset!
       youtubeUrl: "https://www.youtube.com/watch?v=5qap5aO4i9A", // beautiful synth/relax music loop
       productsIds: ["prod-1", "prod-2", "prod-3"],
       couponActive: true,
@@ -233,9 +207,77 @@ export const getInitialState = (): SystemState => {
       displayMode: "standalone"
     }
   };
+};
 
-  localStorage.setItem("mundo_dutra_kids_state", JSON.stringify(initialState));
-  return initialState;
+export const mergeWithDefaults = (parsed: any): SystemState => {
+  const defaults = getDefaultState();
+
+  // Merge nested landpage configuration safely
+  const landpage = {
+    ...defaults.landpage,
+    ...parsed.landpage,
+  };
+
+  // Ensure bannerImages is populated and doesn't contain empty or blank strings
+  if (landpage.bannerImages && Array.isArray(landpage.bannerImages)) {
+    const cleaned = landpage.bannerImages.filter((img: string) => img && img.trim() !== "");
+    if (cleaned.length > 0) {
+      landpage.bannerImages = cleaned;
+    } else {
+      landpage.bannerImages = landpage.bannerImage ? [landpage.bannerImage] : [...defaults.landpage.bannerImages];
+    }
+  } else {
+    landpage.bannerImages = landpage.bannerImage ? [landpage.bannerImage] : [...defaults.landpage.bannerImages];
+  }
+
+  // Ensure live config is merged safely
+  const live = {
+    ...defaults.live,
+    ...parsed.live,
+  };
+
+  // Ensure printing is merged safely
+  const printing = {
+    ...defaults.printing,
+    ...parsed.printing,
+  };
+
+  // Ensure pwa is merged safely
+  const pwa = {
+    ...defaults.pwa,
+    ...parsed.pwa,
+  };
+
+  return {
+    ...defaults,
+    ...parsed,
+    landpage,
+    live,
+    printing,
+    pwa,
+  };
+};
+
+export const getInitialState = (): SystemState => {
+  const stored = localStorage.getItem("mundo_dutra_kids_state");
+  if (stored) {
+    try {
+      const parsed = JSON.parse(stored);
+      // Ensure key sections exist if structure evolved
+      if (parsed.products && parsed.categories && parsed.orders) {
+        const merged = mergeWithDefaults(parsed);
+        // Save merged state to keep it updated with defaults
+        localStorage.setItem("mundo_dutra_kids_state", JSON.stringify(merged));
+        return merged;
+      }
+    } catch (e) {
+      console.error("Error reading localStorage state:", e);
+    }
+  }
+
+  const defaultState = getDefaultState();
+  localStorage.setItem("mundo_dutra_kids_state", JSON.stringify(defaultState));
+  return defaultState;
 };
 
 export const saveState = (state: SystemState) => {

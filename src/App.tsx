@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { getInitialState, saveState } from "./initialState";
+import { getInitialState, saveState, mergeWithDefaults } from "./initialState";
 import { SystemState, Order } from "./types";
 import StoreFront from "./components/StoreFront";
 import AdminLayout from "./components/AdminLayout";
@@ -43,7 +43,7 @@ export default function App() {
     
     const unsubscribe = listenToFirebaseState((firebaseState) => {
       if (firebaseState) {
-        setState(firebaseState as SystemState);
+        setState(mergeWithDefaults(firebaseState));
       } else {
         // If Firestore has no database state yet, seed it with our initial state!
         if (isFirstRun) {
