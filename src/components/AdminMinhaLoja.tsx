@@ -14,15 +14,52 @@ interface AdminMinhaLojaProps {
 }
 
 export default function AdminMinhaLoja({ state, onUpdateState }: AdminMinhaLojaProps) {
+  // Use a local state to prevent real-time Firebase sync from interrupting edits
+  const [localState, setLocalState] = React.useState<SystemState>(state);
+  const [hasChanges, setHasChanges] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!hasChanges) {
+      setLocalState(state);
+    }
+  }, [state, hasChanges]);
+
+  const updateLocalState = (newStateUpdates: Partial<SystemState>) => {
+    setLocalState((prev) => ({
+      ...prev,
+      ...newStateUpdates
+    }));
+    setHasChanges(true);
+  };
+
+  const handleDiscardChanges = () => {
+    setLocalState(state);
+    setHasChanges(false);
+    triggerNotification("Alterações de rascunho descartadas!");
+  };
+
+  const handleSaveChanges = () => {
+    onUpdateState(localState);
+    setHasChanges(false);
+    triggerNotification("Todas as configurações foram salvas com sucesso! 🎉", "success");
+  };
+
   const { 
     shippingNeighborhoods, shippingType, shippingFixedCost, 
-    promotions, avisos, landpage, printing 
-  } = state;
+    promotions, avisos, landpage, printing, pwa, adminPasscode 
+  } = localState;
 
-  const [activeSubTab, setActiveSubTab] = useState<"frete" | "promocoes" | "avisos" | "impressao" | "landpage" | "seguranca" | "pwa">("landpage");
-  const [passcodeInput, setPasscodeInput] = useState(state.adminPasscode || "9310");
-  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-  const [notification, setNotification] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const [activeSubTab, setActiveSubTab] = React.useState<"frete" | "promocoes" | "avisos" | "impressao" | "landpage" | "seguranca" | "pwa">("landpage");
+  const [passcodeInput, setPasscodeInput] = React.useState(adminPasscode || "9310");
+
+  React.useEffect(() => {
+    if (!hasChanges) {
+      setPasscodeInput(adminPasscode || "9310");
+    }
+  }, [adminPasscode, hasChanges]);
+
+  const [deleteConfirmId, setDeleteConfirmId] = React.useState<string | null>(null);
+  const [notification, setNotification] = React.useState<{ message: string; type: "success" | "error" } | null>(null);
 
   const triggerNotification = (message: string, type: "success" | "error" = "success") => {
     setNotification({ message, type });
@@ -67,7 +104,7 @@ export default function AdminMinhaLoja({ state, onUpdateState }: AdminMinhaLojaP
       neighborhood: newNeighborhood.trim(),
       cost: newNeighborhoodCost
     };
-    onUpdateState({
+    updateLocalState({
       shippingNeighborhoods: [...shippingNeighborhoods, item]
     });
     setNewNeighborhood("");
@@ -75,7 +112,7 @@ export default function AdminMinhaLoja({ state, onUpdateState }: AdminMinhaLojaP
   };
 
   const handleRemoveNeighborhood = (id: string) => {
-    onUpdateState({
+    updateLocalState({
       shippingNeighborhoods: shippingNeighborhoods.filter(n => n.id !== id)
     });
   };
@@ -94,7 +131,7 @@ export default function AdminMinhaLoja({ state, onUpdateState }: AdminMinhaLojaP
       durationUnit: newPromoDurationUnit,
       createdAt: new Date().toISOString()
     };
-    onUpdateState({
+    updateLocalState({
       promotions: [...promotions, item]
     });
     setNewPromoTitle("");
@@ -105,13 +142,13 @@ export default function AdminMinhaLoja({ state, onUpdateState }: AdminMinhaLojaP
   };
 
   const handleTogglePromo = (id: string) => {
-    onUpdateState({
+    updateLocalState({
       promotions: promotions.map(p => p.id === id ? { ...p, active: !p.active } : p)
     });
   };
 
   const handleRemovePromo = (id: string) => {
-    onUpdateState({
+    updateLocalState({
       promotions: promotions.filter(p => p.id !== id)
     });
   };
@@ -139,9 +176,9 @@ export default function AdminMinhaLoja({ state, onUpdateState }: AdminMinhaLojaP
       const reader = new FileReader();
       reader.onloadend = () => {
         const b64 = reader.result as string;
-        const updatedPwa = { ...(state.pwa || {}), logoUrl: b64 } as any;
-        onUpdateState({ pwa: updatedPwa });
-        triggerNotification("Ícone do PWA atualizado com sucesso!");
+        const updatedPwa = { ...(localState.pwa || {}), logoUrl: b64 } as any;
+        updateLocalState({ pwa: updatedPwa });
+        triggerNotification("Ícone do PWA atualizado no rascunho!");
       };
       reader.readAsDataURL(file);
     }
@@ -159,7 +196,7 @@ export default function AdminMinhaLoja({ state, onUpdateState }: AdminMinhaLojaP
       title: newAvisoTitle.trim() || undefined,
       createdAt: new Date().toISOString()
     };
-    onUpdateState({
+    updateLocalState({
       avisos: [...avisos, item]
     });
     setNewAvisoMsg("");
@@ -167,24 +204,24 @@ export default function AdminMinhaLoja({ state, onUpdateState }: AdminMinhaLojaP
     setNewAvisoType("top_bar");
     setNewAvisoImage("");
     setNewAvisoTitle("");
-    triggerNotification("Popup aviso cadastrado com sucesso!");
+    triggerNotification("Popup aviso cadastrado no rascunho!");
   };
 
   const handleToggleAviso = (id: string) => {
-    onUpdateState({
+    updateLocalState({
       avisos: avisos.map(a => a.id === id ? { ...a, active: !a.active } : a)
     });
   };
 
   const handleRemoveAviso = (id: string) => {
-    onUpdateState({
+    updateLocalState({
       avisos: avisos.filter(a => a.id !== id)
     });
   };
 
   const handleSaveAviso = (id: string) => {
     if (!editingAvisoMsg.trim()) return;
-    onUpdateState({
+    updateLocalState({
       avisos: avisos.map(a => a.id === id ? { 
         ...a, 
         message: editingAvisoMsg.trim(), 
@@ -200,12 +237,12 @@ export default function AdminMinhaLoja({ state, onUpdateState }: AdminMinhaLojaP
     setEditingAvisoType("top_bar");
     setEditingAvisoImage("");
     setEditingAvisoTitle("");
-    triggerNotification("Aviso popup atualizado com sucesso!");
+    triggerNotification("Aviso popup atualizado no rascunho!");
   };
 
   // --- Helper to update Landpage sub-fields ---
   const updateLandpageField = (field: keyof LandpageConfig, value: any) => {
-    onUpdateState({
+    updateLocalState({
       landpage: {
         ...landpage,
         [field]: value
@@ -215,7 +252,7 @@ export default function AdminMinhaLoja({ state, onUpdateState }: AdminMinhaLojaP
 
   // --- Helper to update Printing sub-fields ---
   const updatePrintingField = (field: keyof PrintingConfig, value: any) => {
-    onUpdateState({
+    updateLocalState({
       printing: {
         ...printing,
         [field]: value
@@ -442,14 +479,14 @@ export default function AdminMinhaLoja({ state, onUpdateState }: AdminMinhaLojaP
                             onClick={() => {
                               const list = landpage.bannerImages || [landpage.bannerImage];
                               const nextList = list.filter((_, i) => i !== index);
-                              onUpdateState({
+                              updateLocalState({
                                 landpage: {
                                   ...landpage,
                                   bannerImages: nextList,
                                   bannerImage: nextList[0] || ""
                                 }
                               });
-                              triggerNotification("Banner removido!");
+                              triggerNotification("Banner removido do rascunho!");
                             }}
                             className="bg-red-600 hover:bg-red-700 text-white p-1.5 rounded-lg text-xs font-bold transition shadow-md"
                             title="Remover este banner"
@@ -480,7 +517,7 @@ export default function AdminMinhaLoja({ state, onUpdateState }: AdminMinhaLojaP
                           if (!newBannerLinkInput.trim()) return;
                           const list = landpage.bannerImages || [landpage.bannerImage];
                           const nextList = [...list, newBannerLinkInput.trim()];
-                          onUpdateState({
+                          updateLocalState({
                             landpage: {
                               ...landpage,
                               bannerImages: nextList,
@@ -488,7 +525,7 @@ export default function AdminMinhaLoja({ state, onUpdateState }: AdminMinhaLojaP
                             }
                           });
                           setNewBannerLinkInput("");
-                          triggerNotification("Banner adicionado via link!");
+                          triggerNotification("Banner adicionado ao rascunho!");
                         }}
                         className="bg-[#5A5A40] text-white hover:bg-[#484833] px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1 shrink-0"
                       >
@@ -509,7 +546,7 @@ export default function AdminMinhaLoja({ state, onUpdateState }: AdminMinhaLojaP
                             reader.onloadend = () => {
                               const list = landpage.bannerImages || [landpage.bannerImage];
                               const nextList = [...list, reader.result as string];
-                              onUpdateState({
+                              updateLocalState({
                                 landpage: {
                                   ...landpage,
                                   bannerImages: nextList,
@@ -825,7 +862,7 @@ export default function AdminMinhaLoja({ state, onUpdateState }: AdminMinhaLojaP
                   name="shippingType"
                   value="bairro"
                   checked={shippingType === "bairro"}
-                  onChange={() => onUpdateState({ shippingType: "bairro" })}
+                  onChange={() => updateLocalState({ shippingType: "bairro" })}
                   className="text-[#5A5A40]"
                 />
                 <span className="text-xs font-bold mt-1 text-gray-700">Por Bairro</span>
@@ -837,7 +874,7 @@ export default function AdminMinhaLoja({ state, onUpdateState }: AdminMinhaLojaP
                   name="shippingType"
                   value="fixo"
                   checked={shippingType === "fixo"}
-                  onChange={() => onUpdateState({ shippingType: "fixo" })}
+                  onChange={() => updateLocalState({ shippingType: "fixo" })}
                   className="text-[#5A5A40]"
                 />
                 <span className="text-xs font-bold mt-1 text-gray-700">Fixo Único</span>
@@ -849,7 +886,7 @@ export default function AdminMinhaLoja({ state, onUpdateState }: AdminMinhaLojaP
                   name="shippingType"
                   value="combinar"
                   checked={shippingType === "combinar"}
-                  onChange={() => onUpdateState({ shippingType: "combinar" })}
+                  onChange={() => updateLocalState({ shippingType: "combinar" })}
                   className="text-[#5A5A40]"
                 />
                 <span className="text-xs font-bold mt-1 text-gray-700">A Combinar (WhatsApp)</span>
@@ -863,7 +900,7 @@ export default function AdminMinhaLoja({ state, onUpdateState }: AdminMinhaLojaP
                   type="number"
                   step="0.01"
                   value={shippingFixedCost}
-                  onChange={(e) => onUpdateState({ shippingFixedCost: parseFloat(e.target.value) || 0 })}
+                  onChange={(e) => updateLocalState({ shippingFixedCost: parseFloat(e.target.value) || 0 })}
                   className="w-full px-3 py-2 bg-gray-50 border border-[#e0e0d6] rounded-xl text-xs"
                 />
               </div>
@@ -1580,8 +1617,10 @@ export default function AdminMinhaLoja({ state, onUpdateState }: AdminMinhaLojaP
                         triggerNotification("O código de acesso precisa ter exatamente 4 dígitos numéricos!", "error");
                         return;
                       }
-                      onUpdateState({ adminPasscode: passcodeInput });
-                      triggerNotification("Código de acesso atualizado e salvo no banco de dados com sucesso!");
+                      updateLocalState({ adminPasscode: passcodeInput });
+                      onUpdateState({ ...localState, adminPasscode: passcodeInput });
+                      setHasChanges(false);
+                      triggerNotification("Código de acesso atualizado e salvo com sucesso! 🎉");
                     }}
                     className="bg-[#5A5A40] hover:bg-[#484833] text-white px-5 rounded-xl font-bold text-xs transition shadow-sm"
                   >
@@ -1615,10 +1654,10 @@ export default function AdminMinhaLoja({ state, onUpdateState }: AdminMinhaLojaP
                   <label className="block text-[10px] uppercase font-bold text-gray-400 mb-1">Nome do Aplicativo (PWA Name) *</label>
                   <input
                     type="text"
-                    value={state.pwa?.name || "Mundo Dutra Kids"}
+                    value={pwa?.name || "Mundo Dutra Kids"}
                     onChange={(e) => {
-                      const updatedPwa = { ...(state.pwa || {}), name: e.target.value } as any;
-                      onUpdateState({ pwa: updatedPwa });
+                      const updatedPwa = { ...(pwa || {}), name: e.target.value } as any;
+                      updateLocalState({ pwa: updatedPwa });
                     }}
                     className="w-full text-xs px-3 py-2 bg-white border border-[#e0e0d6] rounded-xl focus:outline-none focus:border-[#5A5A40]"
                     placeholder="Ex: Mundo Dutra Kids"
@@ -1629,10 +1668,10 @@ export default function AdminMinhaLoja({ state, onUpdateState }: AdminMinhaLojaP
                   <label className="block text-[10px] uppercase font-bold text-gray-400 mb-1">Nome Curto (Short Name) *</label>
                   <input
                     type="text"
-                    value={state.pwa?.shortName || "Dutra Kids"}
+                    value={pwa?.shortName || "Dutra Kids"}
                     onChange={(e) => {
-                      const updatedPwa = { ...(state.pwa || {}), shortName: e.target.value } as any;
-                      onUpdateState({ pwa: updatedPwa });
+                      const updatedPwa = { ...(pwa || {}), shortName: e.target.value } as any;
+                      updateLocalState({ pwa: updatedPwa });
                     }}
                     className="w-full text-xs px-3 py-2 bg-white border border-[#e0e0d6] rounded-xl focus:outline-none focus:border-[#5A5A40]"
                     placeholder="Ex: Dutra Kids"
@@ -1642,10 +1681,10 @@ export default function AdminMinhaLoja({ state, onUpdateState }: AdminMinhaLojaP
                 <div className="col-span-1 md:col-span-2">
                   <label className="block text-[10px] uppercase font-bold text-gray-400 mb-1">Ícone / Logomarca do App (PWA)</label>
                   <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center bg-white p-3 rounded-2xl border border-[#e0e0d6]">
-                    {(state.pwa?.logoUrl || state.landpage?.logoImage) ? (
+                    {(pwa?.logoUrl || landpage?.logoImage) ? (
                       <div className="w-14 h-14 bg-gray-50 border border-gray-100 rounded-xl overflow-hidden shrink-0 flex items-center justify-center p-1 shadow-sm">
                         <img 
-                          src={state.pwa?.logoUrl || state.landpage?.logoImage} 
+                          src={pwa?.logoUrl || landpage?.logoImage} 
                           className="max-w-full max-h-full object-contain" 
                           alt="PWA Icon Preview" 
                           referrerPolicy="no-referrer"
@@ -1659,10 +1698,10 @@ export default function AdminMinhaLoja({ state, onUpdateState }: AdminMinhaLojaP
                     <div className="flex-1 space-y-1.5">
                       <input
                         type="text"
-                        value={state.pwa?.logoUrl || ""}
+                        value={pwa?.logoUrl || ""}
                         onChange={(e) => {
-                          const updatedPwa = { ...(state.pwa || {}), logoUrl: e.target.value } as any;
-                          onUpdateState({ pwa: updatedPwa });
+                          const updatedPwa = { ...(pwa || {}), logoUrl: e.target.value } as any;
+                          updateLocalState({ pwa: updatedPwa });
                         }}
                         className="w-full text-xs px-2.5 py-1.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none"
                         placeholder="Cole a URL do ícone ou faça upload..."
@@ -1677,12 +1716,12 @@ export default function AdminMinhaLoja({ state, onUpdateState }: AdminMinhaLojaP
                             className="hidden"
                           />
                         </label>
-                        {state.pwa?.logoUrl && (
+                        {pwa?.logoUrl && (
                           <button
                             type="button"
                             onClick={() => {
-                              const updatedPwa = { ...(state.pwa || {}), logoUrl: "" } as any;
-                              onUpdateState({ pwa: updatedPwa });
+                              const updatedPwa = { ...(pwa || {}), logoUrl: "" } as any;
+                              updateLocalState({ pwa: updatedPwa });
                             }}
                             className="bg-red-50 hover:bg-red-100 text-red-600 text-[10px] font-bold px-3 py-1.5 rounded-lg border border-red-200 transition"
                           >
@@ -1699,20 +1738,20 @@ export default function AdminMinhaLoja({ state, onUpdateState }: AdminMinhaLojaP
                   <div className="flex gap-2">
                     <input
                       type="color"
-                      value={state.pwa?.themeColor || "#5A5A40"}
+                      value={pwa?.themeColor || "#5A5A40"}
                       onChange={(e) => {
-                        const updatedPwa = { ...(state.pwa || {}), themeColor: e.target.value } as any;
-                        onUpdateState({ pwa: updatedPwa });
+                        const updatedPwa = { ...(pwa || {}), themeColor: e.target.value } as any;
+                        updateLocalState({ pwa: updatedPwa });
                       }}
                       className="w-10 h-9 rounded-xl border border-gray-200 cursor-pointer p-0.5 shrink-0 bg-white"
                     />
                     <input
                       type="text"
                       maxLength={7}
-                      value={state.pwa?.themeColor || "#5A5A40"}
+                      value={pwa?.themeColor || "#5A5A40"}
                       onChange={(e) => {
-                        const updatedPwa = { ...(state.pwa || {}), themeColor: e.target.value } as any;
-                        onUpdateState({ pwa: updatedPwa });
+                        const updatedPwa = { ...(pwa || {}), themeColor: e.target.value } as any;
+                        updateLocalState({ pwa: updatedPwa });
                       }}
                       className="flex-1 text-xs px-3 py-2 bg-white border border-[#e0e0d6] rounded-xl focus:outline-none font-mono focus:border-[#5A5A40]"
                       placeholder="#5A5A40"
@@ -1723,10 +1762,10 @@ export default function AdminMinhaLoja({ state, onUpdateState }: AdminMinhaLojaP
                 <div>
                   <label className="block text-[10px] uppercase font-bold text-gray-400 mb-1">Modo de Exibição (Display Mode)</label>
                   <select
-                    value={state.pwa?.displayMode || "standalone"}
+                    value={pwa?.displayMode || "standalone"}
                     onChange={(e) => {
-                      const updatedPwa = { ...(state.pwa || {}), displayMode: e.target.value } as any;
-                      onUpdateState({ pwa: updatedPwa });
+                      const updatedPwa = { ...(pwa || {}), displayMode: e.target.value } as any;
+                      updateLocalState({ pwa: updatedPwa });
                     }}
                     className="w-full text-xs px-3 py-2 bg-white border border-[#e0e0d6] rounded-xl focus:outline-none"
                   >
@@ -1737,16 +1776,53 @@ export default function AdminMinhaLoja({ state, onUpdateState }: AdminMinhaLojaP
                 </div>
               </div>
 
-              <div className="mt-4 flex justify-end">
+              <div className="mt-4 flex justify-end gap-2 border-t border-gray-100 pt-4">
+                {hasChanges && (
+                  <button
+                    type="button"
+                    onClick={handleDiscardChanges}
+                    className="text-gray-500 hover:text-gray-700 bg-gray-100 hover:bg-gray-200 px-4 py-2 rounded-xl text-xs font-bold transition"
+                  >
+                    Descartar Rascunho
+                  </button>
+                )}
                 <button
-                  onClick={() => {
-                    triggerNotification("Configurações do Aplicativo PWA salvas com sucesso!");
-                  }}
-                  className="bg-[#5A5A40] hover:bg-[#484833] text-white px-5 py-2 rounded-xl font-bold text-xs transition shadow-sm"
+                  type="button"
+                  onClick={handleSaveChanges}
+                  className="bg-[#5A5A40] hover:bg-[#484833] text-white px-5 py-2 rounded-xl font-bold text-xs transition shadow-sm flex items-center gap-1.5"
                 >
-                  Salvar PWA
+                  💾 Salvar Configurações
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Global Floating Draft State Footer */}
+        {hasChanges && (
+          <div className="sticky bottom-4 left-4 right-4 bg-amber-50 border border-amber-200 shadow-xl rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 z-50 mt-6 animate-pulse-subtle">
+            <div className="flex items-center gap-2">
+              <span className="text-xl">⚠️</span>
+              <div>
+                <p className="text-xs font-bold text-amber-900">Você tem alterações não salvas!</p>
+                <p className="text-[10px] text-amber-700">As alterações estão salvas localmente como rascunho temporário.</p>
+              </div>
+            </div>
+            <div className="flex gap-2 w-full sm:w-auto">
+              <button
+                type="button"
+                onClick={handleDiscardChanges}
+                className="flex-1 sm:flex-none text-xs font-bold text-amber-800 bg-amber-100 hover:bg-amber-200 px-4 py-2 rounded-xl transition"
+              >
+                Descartar Rascunho
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveChanges}
+                className="flex-1 sm:flex-none text-xs font-bold text-white bg-[#5A5A40] hover:bg-[#484833] px-5 py-2 rounded-xl shadow-md transition flex items-center justify-center gap-1.5"
+              >
+                💾 Salvar Todas as Configurações
+              </button>
             </div>
           </div>
         )}

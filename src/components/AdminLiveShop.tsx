@@ -19,6 +19,15 @@ export default function AdminLiveShop({ state, onUpdateState }: AdminLiveShopPro
   const [couponValue, setCouponValue] = useState(live.couponValue || "");
   const [couponMinutes, setCouponMinutes] = useState(Math.round((live.couponTimeLeft || 1200) / 60));
 
+  const [notification, setNotification] = useState<{ message: string; type: "success" | "error" } | null>(null);
+
+  const triggerNotification = (message: string, type: "success" | "error" = "success") => {
+    setNotification({ message, type });
+    setTimeout(() => {
+      setNotification(null);
+    }, 3500);
+  };
+
   // Sync state changes if they come from another admin tab or Firebase
   useEffect(() => {
     setCouponActive(live.couponActive);
@@ -29,7 +38,7 @@ export default function AdminLiveShop({ state, onUpdateState }: AdminLiveShopPro
 
   const handleStartLive = () => {
     if (!youtubeUrl.trim()) {
-      alert("Por favor, cole um link válido do YouTube para iniciar a transmissão!");
+      triggerNotification("Por favor, cole um link válido do YouTube para iniciar a transmissão!", "error");
       return;
     }
     const update: LiveConfig = {
@@ -40,7 +49,7 @@ export default function AdminLiveShop({ state, onUpdateState }: AdminLiveShopPro
       spectatorsCount: 142
     };
     onUpdateState({ live: update });
-    alert("Live Shop iniciada com sucesso! Os clientes na loja verão a transmissão em tempo real.");
+    triggerNotification("Live Shop iniciada com sucesso! Os clientes na loja verão a transmissão em tempo real. 🔴");
   };
 
   const handleStopLive = () => {
@@ -52,7 +61,7 @@ export default function AdminLiveShop({ state, onUpdateState }: AdminLiveShopPro
       spectatorsCount: 0
     };
     onUpdateState({ live: update });
-    alert("Live Shop encerrada.");
+    triggerNotification("Live Shop encerrada com sucesso!");
   };
 
   const handleUpdateHighlight = (prodId: string) => {
@@ -64,6 +73,7 @@ export default function AdminLiveShop({ state, onUpdateState }: AdminLiveShopPro
         highlightedProductId: nextProd || undefined
       }
     });
+    triggerNotification(nextProd ? "Produto destacado na transmissão! 🌟" : "Destaque de produto removido.");
   };
 
   const handleSaveCouponSettings = (activeVal: boolean) => {
@@ -78,7 +88,17 @@ export default function AdminLiveShop({ state, onUpdateState }: AdminLiveShopPro
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 relative">
+      {/* Toast Notification */}
+      {notification && (
+        <div className={`fixed top-4 right-4 z-50 p-4 rounded-2xl shadow-xl flex items-center gap-2 border text-xs font-bold transition-all duration-300 ${
+          notification.type === "success" 
+            ? "bg-green-50 border-green-200 text-green-800" 
+            : "bg-red-50 border-red-200 text-red-800"
+        }`}>
+          {notification.type === "success" ? "🎉" : "⚠️"} {notification.message}
+        </div>
+      )}
       
       {/* Configuration panel */}
       <div className="bg-white p-5 rounded-3xl border border-[#e0e0d6] shadow-sm space-y-4">
@@ -222,7 +242,7 @@ export default function AdminLiveShop({ state, onUpdateState }: AdminLiveShopPro
             type="button"
             onClick={() => {
               handleSaveCouponSettings(couponActive);
-              alert("Cupom de desconto salvo e transmitido com sucesso!");
+              triggerNotification("Cupom de desconto salvo e transmitido com sucesso! 🎫");
             }}
             className="bg-[#5A5A40] hover:bg-[#484833] text-white px-5 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm hover:scale-102 active:scale-98"
           >
