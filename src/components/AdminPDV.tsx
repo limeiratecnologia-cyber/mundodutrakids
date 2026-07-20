@@ -296,7 +296,7 @@ export default function AdminPDV({ state, onAddOrder }: AdminPDVProps) {
                   key={prod.id} 
                   className="bg-gray-50 border border-gray-100 p-3 rounded-2xl flex gap-3 hover:border-[#5A5A40]/40 transition"
                 >
-                  <img src={prod.image} className="w-12 h-15 rounded-lg object-cover bg-gray-200" alt="" />
+                  <img src={prod.image} className="w-12 h-15 rounded-lg object-contain bg-white p-0.5 border" alt="" />
                   
                   <div className="flex-1 min-w-0 flex flex-col justify-between">
                     <div>

@@ -632,7 +632,7 @@ export default function StoreFront({ state, onPlaceOrder, onBackToAdmin }: Store
                 isMobile ? "p-4 shadow-sm" : "p-3 hover:shadow-sm transition"
               }`}
             >
-              <img src={item.product.image} className={`${isMobile ? "w-16 h-20" : "w-12 h-15"} rounded-xl object-cover shrink-0 bg-gray-50`} alt="" />
+              <img src={item.product.image} className={`${isMobile ? "w-16 h-20 p-1" : "w-12 h-15 p-0.5"} rounded-xl object-contain shrink-0 bg-gray-50`} alt="" />
               
               <div className="flex-1 min-w-0">
                 <h4 className={`font-extrabold text-gray-800 truncate ${isMobile ? "text-sm" : "text-xs"}`}>
@@ -993,7 +993,7 @@ export default function StoreFront({ state, onPlaceOrder, onBackToAdmin }: Store
               <img 
                 src={landpage.logoImage} 
                 alt="Logo" 
-                className="w-12 h-12 rounded-full object-cover shadow-sm border border-[#e0e0d6]"
+                className="w-12 h-12 rounded-full object-contain p-1 bg-white shadow-sm border border-[#e0e0d6]"
                 style={{ width: "48px", height: "48px" }}
               />
             )}
@@ -1160,8 +1160,8 @@ export default function StoreFront({ state, onPlaceOrder, onBackToAdmin }: Store
                           </div>
 
                           {/* Product thumbnail */}
-                          <div className="aspect-[4/3] rounded-xl overflow-hidden bg-gray-50 relative">
-                            <img src={prod.image} className="w-full h-full object-cover" alt="" />
+                          <div className="aspect-[4/3] rounded-xl overflow-hidden bg-gray-50 flex items-center justify-center p-1 relative">
+                            <img src={prod.image} className="max-w-full max-h-full object-contain" alt="" />
                             {totalStock === 0 && (
                               <div className="absolute inset-0 bg-black/60 flex items-center justify-center p-1 text-center z-10">
                                 <span className="bg-red-600 text-white text-[8px] font-bold uppercase px-1.5 py-0.5 rounded">Esgotado</span>
@@ -1325,7 +1325,7 @@ export default function StoreFront({ state, onPlaceOrder, onBackToAdmin }: Store
               </div>
       
               {bannerList.length > 0 && (
-                <div className="md:w-1/2 w-full h-72 md:h-[380px] overflow-hidden relative rounded-[2.5rem] border-4 border-white shadow-xl hover:shadow-2xl transition duration-300">
+                <div className="md:w-1/2 w-full h-72 md:h-[380px] overflow-hidden relative rounded-[2.5rem] border-4 border-white bg-white shadow-xl hover:shadow-2xl transition duration-300 flex items-center justify-center">
                   <AnimatePresence mode="wait">
                     <motion.img 
                       key={currentBannerIndex}
@@ -1335,8 +1335,8 @@ export default function StoreFront({ state, onPlaceOrder, onBackToAdmin }: Store
                       animate={{ opacity: 1, scale: 1 }}
                       exit={{ opacity: 0, scale: 0.95 }}
                       transition={{ duration: 0.5 }}
-                      className="absolute inset-0 w-full h-full object-cover"
-                      style={{ objectFit: "cover" }}
+                      className="max-w-full max-h-full object-contain"
+                      style={{ objectFit: "contain" }}
                     />
                   </AnimatePresence>
                   <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none"></div>
@@ -1449,7 +1449,7 @@ export default function StoreFront({ state, onPlaceOrder, onBackToAdmin }: Store
                   className="bg-white rounded-2xl border border-[#e0e0d6] overflow-hidden shadow-sm hover:shadow-md transition flex flex-col justify-between"
                 >
                   {/* Image container */}
-                  <div className="aspect-[4/5] bg-[#f9f9f5] relative overflow-hidden group">
+                  <div className="aspect-[4/5] bg-[#f9f9f5] p-2 flex items-center justify-center relative overflow-hidden group">
                     <img
                       src={prod.image}
                       alt={prod.name}
@@ -1458,7 +1458,7 @@ export default function StoreFront({ state, onPlaceOrder, onBackToAdmin }: Store
                         const firstAvailableSize = prod.sizes.find(s => s.stock > 0)?.size || "";
                         setSelectedDetailSize(firstAvailableSize);
                       }}
-                      className="w-full h-full object-cover group-hover:scale-105 transition duration-300 cursor-pointer"
+                      className="max-w-full max-h-full object-contain group-hover:scale-105 transition duration-300 cursor-pointer"
                     />
 
                     {totalStock === 0 && (
@@ -1570,11 +1570,11 @@ export default function StoreFront({ state, onPlaceOrder, onBackToAdmin }: Store
               exit={{ opacity: 0, scale: 0.95 }}
               className="bg-white rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl border border-[#e0e0d6]"
             >
-              <div className="relative aspect-[16/10] bg-[#f9f9f5]">
-                <img src={selectedImage || viewingProduct.image} className="w-full h-full object-cover" alt="" />
+              <div className="relative aspect-[16/10] bg-[#f9f9f5] p-3 flex items-center justify-center">
+                <img src={selectedImage || viewingProduct.image} className="max-w-full max-h-full object-contain" alt="" />
                 <button
                   onClick={() => setViewingProduct(null)}
-                  className="absolute top-3 right-3 bg-black/60 text-white p-1.5 rounded-full hover:bg-black/80 transition"
+                  className="absolute top-3 right-3 bg-black/60 text-white p-1.5 rounded-full hover:bg-black/80 transition z-10"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -1589,11 +1589,11 @@ export default function StoreFront({ state, onPlaceOrder, onBackToAdmin }: Store
                       <button
                         key={index}
                         onClick={() => setSelectedImage(img)}
-                        className={`w-12 h-12 rounded-lg overflow-hidden border-2 shrink-0 transition ${
+                        className={`w-12 h-12 rounded-lg overflow-hidden border-2 bg-white p-0.5 shrink-0 transition ${
                           isSelected ? "border-[#5A5A40] scale-105" : "border-transparent opacity-70 hover:opacity-100"
                         }`}
                       >
-                        <img src={img} className="w-full h-full object-cover" alt="" />
+                        <img src={img} className="w-full h-full object-contain" alt="" />
                       </button>
                     );
                   })}
@@ -1862,8 +1862,8 @@ export default function StoreFront({ state, onPlaceOrder, onBackToAdmin }: Store
               </button>
 
               {currentCenteredPopup.image && (
-                <div className="w-full aspect-[4/3] rounded-2xl overflow-hidden bg-gray-50 border border-gray-100">
-                  <img src={currentCenteredPopup.image} className="w-full h-full object-cover" alt="" />
+                <div className="w-full aspect-[4/3] rounded-2xl overflow-hidden bg-white p-1 border border-gray-100 flex items-center justify-center">
+                  <img src={currentCenteredPopup.image} className="max-w-full max-h-full object-contain" alt="" />
                 </div>
               )}
 

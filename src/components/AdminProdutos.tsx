@@ -458,8 +458,8 @@ export default function AdminProdutos({ products, categories, onAddProduct, onEd
                           {images.map((img, idx) => {
                             const isMain = img === image;
                             return (
-                              <div key={idx} className="relative group aspect-square bg-white border border-gray-100 rounded-xl overflow-hidden shadow-xs">
-                                <img src={img} className="w-full h-full object-cover" alt="" />
+                              <div key={idx} className="relative group aspect-square bg-white border border-gray-100 rounded-xl overflow-hidden shadow-xs flex items-center justify-center p-0.5">
+                                <img src={img} className="max-w-full max-h-full object-contain" alt="" />
                                 
                                 {isMain && (
                                   <div className="absolute top-1 left-1 bg-green-500 text-white text-[7px] font-extrabold px-1 rounded-sm uppercase tracking-wider">
@@ -647,8 +647,8 @@ export default function AdminProdutos({ products, categories, onAddProduct, onEd
               }`}
             >
               {/* Product top image area */}
-              <div className="aspect-[16/11] relative bg-[#f9f9f5]">
-                <img src={prod.image} className="w-full h-full object-cover" alt="" />
+              <div className="aspect-[16/11] relative bg-[#f9f9f5] flex items-center justify-center p-2">
+                <img src={prod.image} className="max-w-full max-h-full object-contain" alt="" />
                 
                 {/* Code sequential badge */}
                 <span className="absolute top-2 left-2 bg-black/60 text-white text-[9px] font-mono px-2 py-0.5 rounded">

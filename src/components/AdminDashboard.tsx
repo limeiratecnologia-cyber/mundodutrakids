@@ -197,7 +197,7 @@ export default function AdminDashboard({ state }: AdminDashboardProps) {
             ) : (
               topSellingProducts.map((p, i) => (
                 <div key={i} className="flex items-center gap-3 bg-gray-50 p-2.5 rounded-xl border border-gray-100">
-                  <img src={p.image} className="w-10 h-12 object-cover rounded-lg" alt="" />
+                  <img src={p.image} className="w-10 h-12 object-contain bg-white rounded-lg p-0.5 border" alt="" />
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-bold truncate text-gray-900">{p.name}</p>
                     <p className="text-[10px] text-gray-400 font-medium">{p.qty} unidades vendidas</p>

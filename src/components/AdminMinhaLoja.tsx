@@ -434,8 +434,8 @@ export default function AdminMinhaLoja({ state, onUpdateState }: AdminMinhaLojaP
                   {/* Existing banner list */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
                     {(landpage.bannerImages || [landpage.bannerImage]).map((banner, index) => (
-                      <div key={index} className="relative aspect-[16/9] rounded-xl overflow-hidden border border-gray-200 bg-white group">
-                        <img src={banner} alt={`Banner ${index + 1}`} className="w-full h-full object-cover" />
+                      <div key={index} className="relative aspect-[16/9] rounded-xl overflow-hidden border border-gray-200 bg-white flex items-center justify-center p-1 group">
+                        <img src={banner} alt={`Banner ${index + 1}`} className="max-w-full max-h-full object-contain" />
                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
                           <button
                             type="button"
