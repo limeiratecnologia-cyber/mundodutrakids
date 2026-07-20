@@ -33,6 +33,7 @@ export default function AdminProdutos({ products, categories, onAddProduct, onEd
   const [price, setPrice] = useState<number>(0);
   const [cost, setCost] = useState<number>(0);
   const [image, setImage] = useState("");
+  const [images, setImages] = useState<string[]>([]);
   const [categoryId, setCategoryId] = useState("");
   const [age, setAge] = useState("");
   const [description, setDescription] = useState("");
@@ -67,7 +68,7 @@ export default function AdminProdutos({ products, categories, onAddProduct, onEd
     return `P${nextNum.toString().padStart(4, "0")}`;
   }, [products]);
 
-  // Base64 file converter
+  // Base64 file converter for main image
   const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -75,10 +76,62 @@ export default function AdminProdutos({ products, categories, onAddProduct, onEd
       reader.onloadend = () => {
         const b64 = reader.result as string;
         setImage(b64);
+        if (!images.includes(b64)) {
+          setImages(prev => [...prev, b64]);
+        }
         triggerAiImageAnalysis(b64);
       };
       reader.readAsDataURL(file);
     }
+  };
+
+  // Base64 file converter for multiple images
+  const handleMultipleImagesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      const fileList = Array.from(files);
+      const loadedImages: string[] = [];
+      let count = 0;
+      fileList.forEach((file: File) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const b64 = reader.result as string;
+          loadedImages.push(b64);
+          count++;
+          if (count === fileList.length) {
+            setImages(prev => {
+              const updated = [...prev, ...loadedImages];
+              if (updated.length > 0 && !image) {
+                setImage(updated[0]);
+              }
+              return updated;
+            });
+            triggerAiImageAnalysis(loadedImages[0]);
+            triggerNotification(`${loadedImages.length} fotos carregadas!`);
+          }
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+  };
+
+  const handleRemoveImage = (index: number) => {
+    const updated = images.filter((_, i) => i !== index);
+    setImages(updated);
+    if (index === 0 && updated.length > 0) {
+      setImage(updated[0]);
+    } else if (updated.length === 0) {
+      setImage("");
+    }
+  };
+
+  const handleSetMainImage = (index: number) => {
+    const updated = [...images];
+    const selected = updated.splice(index, 1)[0];
+    updated.unshift(selected);
+    setImages(updated);
+    setImage(selected);
+    triggerNotification("Definida como imagem principal!");
   };
 
   // Trigger Gemini photo analytics (image-suggestions API)
@@ -144,6 +197,7 @@ export default function AdminProdutos({ products, categories, onAddProduct, onEd
     setPrice(0);
     setCost(0);
     setImage("https://images.unsplash.com/photo-1519457431-44ccd64a579b?q=80&w=400");
+    setImages(["https://images.unsplash.com/photo-1519457431-44ccd64a579b?q=80&w=400"]);
     setCategoryId(categories[0]?.id || "");
     setAge("Livre / Todos");
     setDescription("");
@@ -163,6 +217,7 @@ export default function AdminProdutos({ products, categories, onAddProduct, onEd
     setPrice(prod.price);
     setCost(prod.cost);
     setImage(prod.image);
+    setImages(prod.images && prod.images.length > 0 ? prod.images : [prod.image]);
     setCategoryId(prod.categoryId);
     setAge(prod.age);
     setDescription(prod.description);
@@ -202,13 +257,17 @@ export default function AdminProdutos({ products, categories, onAddProduct, onEd
       return;
     }
 
+    const finalImage = image || (images.length > 0 ? images[0] : "");
+    const finalImages = images.length > 0 ? images : (finalImage ? [finalImage] : []);
+
     if (editingProduct) {
       const updated: Product = {
         ...editingProduct,
         name,
         price,
         cost,
-        image,
+        image: finalImage,
+        images: finalImages,
         categoryId,
         age,
         description,
@@ -224,7 +283,8 @@ export default function AdminProdutos({ products, categories, onAddProduct, onEd
         name,
         price,
         cost,
-        image,
+        image: finalImage,
+        images: finalImages,
         categoryId,
         age,
         description,
@@ -371,35 +431,84 @@ export default function AdminProdutos({ products, categories, onAddProduct, onEd
                       </button>
                     </div>
                   </div>
-                </div>
-
-                {/* Right Inputs: Photo and AI Assistant */}
+                      {/* Right Inputs: Photo and AI Assistant */}
                 <div className="space-y-3.5">
                   <div>
-                    <label className="block text-[10px] uppercase font-bold text-gray-500 mb-1">Foto do Produto (Upload ou URL)</label>
-                    <div className="flex gap-2 items-center bg-gray-50 p-3 rounded-2xl border border-[#e0e0d6]">
-                      <img 
-                        src={image || "https://images.unsplash.com/photo-1519457431-44ccd64a579b?q=80&w=150"} 
-                        className="w-16 h-16 rounded-xl object-cover border border-gray-300" 
-                        alt="" 
-                      />
-                      <div className="flex-1 space-y-1.5">
-                        <input
-                          type="text"
-                          placeholder="URL da Imagem..."
-                          value={image}
-                          onChange={(e) => setImage(e.target.value)}
-                          className="w-full px-2.5 py-1 text-[10px] bg-white border border-gray-200 rounded focus:outline-none"
-                        />
-                        <label className="cursor-pointer bg-[#5A5A40]/10 hover:bg-[#5A5A40]/20 text-[#5A5A40] text-[10px] font-bold px-2 py-1 rounded inline-block transition">
-                          <Camera className="w-3 h-3 inline mr-1" /> Fazer Upload Foto
+                    <label className="block text-[10px] uppercase font-bold text-gray-500 mb-1">Fotos do Produto (Várias Imagens)</label>
+                    
+                    {/* Multi-upload Button */}
+                    <div className="bg-gray-50 p-3 rounded-2xl border border-[#e0e0d6] space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] text-gray-400 font-medium">Selecione uma ou mais fotos de uma vez</span>
+                        <label className="cursor-pointer bg-[#5A5A40] hover:bg-[#5A5A40]/90 text-white text-[10px] font-bold px-2.5 py-1.5 rounded-xl inline-block transition shadow-sm">
+                          <Plus className="w-3 h-3 inline mr-1" /> Adicionar Fotos
                           <input
                             type="file"
                             accept="image/*"
-                            onChange={handleImageFileChange}
+                            multiple
+                            onChange={handleMultipleImagesChange}
                             className="hidden"
                           />
                         </label>
+                      </div>
+
+                      {/* Displaying Image Grid */}
+                      {images.length > 0 ? (
+                        <div className="grid grid-cols-4 gap-2 pt-1">
+                          {images.map((img, idx) => {
+                            const isMain = img === image;
+                            return (
+                              <div key={idx} className="relative group aspect-square bg-white border border-gray-100 rounded-xl overflow-hidden shadow-xs">
+                                <img src={img} className="w-full h-full object-cover" alt="" />
+                                
+                                {isMain && (
+                                  <div className="absolute top-1 left-1 bg-green-500 text-white text-[7px] font-extrabold px-1 rounded-sm uppercase tracking-wider">
+                                    Capa
+                                  </div>
+                                )}
+
+                                {/* Hover controls */}
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition duration-150 flex flex-col items-center justify-center gap-1 z-10">
+                                  {!isMain && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleSetMainImage(idx)}
+                                      className="bg-white/90 hover:bg-white text-[8px] font-bold text-gray-800 px-1.5 py-0.5 rounded transition"
+                                    >
+                                      Capa
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveImage(idx)}
+                                    className="bg-red-600/90 hover:bg-red-600 text-white p-1 rounded-full transition"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <p className="text-[10px] text-gray-400 text-center py-2">Nenhuma foto adicionada ainda.</p>
+                      )}
+
+                      {/* URL main image fallback/direct input */}
+                      <div className="pt-2 border-t border-gray-100">
+                        <label className="block text-[8px] uppercase font-bold text-gray-400 mb-1">Ou digite a URL da Imagem Principal</label>
+                        <input
+                          type="text"
+                          placeholder="Ex: https://imagens.com/roupa.jpg"
+                          value={image}
+                          onChange={(e) => {
+                            setImage(e.target.value);
+                            if (e.target.value && !images.includes(e.target.value)) {
+                              setImages(prev => [e.target.value, ...prev]);
+                            }
+                          }}
+                          className="w-full px-2.5 py-1 text-[10px] bg-white border border-gray-200 rounded-lg focus:outline-none"
+                        />
                       </div>
                     </div>
 
@@ -414,7 +523,7 @@ export default function AdminProdutos({ products, categories, onAddProduct, onEd
                         {aiImageFeedback}
                       </div>
                     )}
-                  </div>
+                  </div>             </div>
 
                   {/* Size Options Grid Stock */}
                   <div className="space-y-1.5 bg-[#fbfbfa] p-3 rounded-2xl border border-[#e0e0d6]/70">

@@ -197,7 +197,18 @@ export const getInitialState = (): SystemState => {
       welcomeMessage: "Bem-vindo à nossa loja! Toque para ver nossa coleção exclusiva.",
       floatingParticles: true,
       fontFamily: "classica",
-      skin: "default"
+      skin: "default",
+      bannerImages: ["https://images.unsplash.com/photo-1471286174574-e9627710ee59?q=80&w=1200&auto=format&fit=crop"],
+      faviconImage: "",
+      topBadgeText: "✨ 🧸 Mundo Feliz Kids • Nova Coleção",
+      badge1Icon: "🌸",
+      badge1Text: "100% Algodão",
+      badge2Icon: "☁️",
+      badge2Text: "Toque Macio",
+      badge3Icon: "🍼",
+      badge3Text: "Hipoalergênico",
+      bannerTagIcon: "👗",
+      bannerTagText: "Moda Infantil Premium"
     },
     printing: {
       headerText: "MUNDO DUTRA KIDS\nObrigado pela preferência!",

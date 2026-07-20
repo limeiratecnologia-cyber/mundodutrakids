@@ -19,6 +19,24 @@ export default function App() {
     saveState(state);
   }, [state]);
 
+  // Dynamic Page Title & Favicon sync
+  useEffect(() => {
+    const title = state.pwa?.name || state.landpage.heroTitle || "Mundo Dutra Kids";
+    document.title = title;
+
+    const faviconUrl = state.landpage.faviconImage || state.landpage.logoImage;
+    if (faviconUrl) {
+      let link: HTMLLinkElement | null = document.querySelector("link[rel*='icon']");
+      if (!link) {
+        link = document.createElement('link');
+        link.type = 'image/x-icon';
+        link.rel = 'shortcut icon';
+        document.getElementsByTagName('head')[0].appendChild(link);
+      }
+      link.href = faviconUrl;
+    }
+  }, [state.landpage.faviconImage, state.landpage.logoImage, state.landpage.heroTitle, state.pwa?.name]);
+
   // Connect to Firebase Firestore for real-time, persistent database sync
   useEffect(() => {
     let isFirstRun = true;

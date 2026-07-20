@@ -10,6 +10,7 @@ export interface Product {
   price: number;
   cost: number;
   image: string;
+  images?: string[]; // Multiple images for products
   categoryId: string;
   sizes: ProductSizeStock[];
   age: string; // e.g., "1 ano", "2 anos", "infantil", "teen"
@@ -40,15 +41,18 @@ export interface Order {
   date: string;
   clientName: string;
   clientWhatsapp: string;
-  paymentMethod: "Pix" | "Cartão de Crédito" | "Cartão de Débito" | "Boleto";
+  paymentMethod: "Pix" | "Cartão de Crédito" | "Cartão de Débito" | "Boleto" | "Dinheiro";
   items: OrderItem[];
   subtotal: number;
   shippingCost: number;
-  shippingType: "bairro" | "combinar" | "fixo";
+  shippingType: "bairro" | "combinar" | "fixo" | "retirada";
   shippingDetails: string; // neighborhood or custom notes
   total: number;
   status: "pendente" | "aprovado" | "cancelado";
   observations?: string;
+  cashAmountGiven?: number; // Cash given by the customer
+  cashChange?: number;       // Change to be returned
+  deliveryType?: "retirada" | "entrega"; // Pickup or Delivery
 }
 
 export interface Transaction {
@@ -75,6 +79,9 @@ export interface Promotion {
   value: number; // percentage or fixed R$
   active: boolean;
   durationSeconds?: number;
+  durationValue?: number;
+  durationUnit?: "minutos" | "horas" | "dias" | "ilimitado";
+  createdAt?: string;
 }
 
 export interface Aviso {
@@ -83,6 +90,9 @@ export interface Aviso {
   active: boolean;
   displayTimeSeconds: number; // 0 for permanent
   createdAt: string;
+  type?: "top_bar" | "centered_popup"; // Option for top banner or centered modal popup
+  image?: string; // Optional image URL or base64 for coupon/promo visual
+  title?: string; // Optional title for centered popup
 }
 
 export interface LandpageConfig {
@@ -96,6 +106,17 @@ export interface LandpageConfig {
   floatingParticles: boolean; // balloons and bubbles
   fontFamily?: string; // Font preset ID
   skin?: string;       // Skin preset ID
+  bannerImages?: string[]; // Multiple rotating banners
+  faviconImage?: string; // Custom Favicon Base64/URL
+  topBadgeText?: string; // Customizable top collection badge
+  badge1Icon?: string;
+  badge1Text?: string;
+  badge2Icon?: string;
+  badge2Text?: string;
+  badge3Icon?: string;
+  badge3Text?: string;
+  bannerTagIcon?: string;
+  bannerTagText?: string;
 }
 
 export interface PrintingConfig {

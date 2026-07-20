@@ -5,7 +5,7 @@ import {
   ChevronRight, ChevronLeft, Radio, ShoppingCart, Plus, Minus, X, 
   Send, Sparkles, MessageCircle, AlertCircle, Sparkle, Percent, MapPin, Trash2
 } from "lucide-react";
-import { SystemState, Product, Order, OrderItem } from "../types";
+import { SystemState, Product, Order, OrderItem, Aviso } from "../types";
 import ManequimVirtual from "./ManequimVirtual";
 import YoutubeEmbed from "./YoutubeEmbed";
 import FloatingParticles from "./FloatingParticles";
@@ -52,8 +52,13 @@ export default function StoreFront({ state, onPlaceOrder, onBackToAdmin }: Store
   // Modal / Interaction States
   const [activeManequimProduct, setActiveManequimProduct] = useState<Product | null>(null);
   const [viewingProduct, setViewingProduct] = useState<Product | null>(null);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [selectedDetailSize, setSelectedDetailSize] = useState<string>("");
   const [detailQuantity, setDetailQuantity] = useState<number>(1);
+
+  useEffect(() => {
+    setSelectedImage(null);
+  }, [viewingProduct]);
 
   // Live Shop dedicated states
   const [activeStoreTab, setActiveStoreTab] = useState<"loja" | "live">("loja");
@@ -78,6 +83,25 @@ export default function StoreFront({ state, onPlaceOrder, onBackToAdmin }: Store
 
   // Active general popup aviso
   const [currentAviso, setCurrentAviso] = useState<string | null>(null);
+  const [currentCenteredPopup, setCurrentCenteredPopup] = useState<Aviso | null>(null);
+
+  // Banner slideshow state
+  const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
+
+  const bannerList = useMemo(() => {
+    if (landpage.bannerImages && landpage.bannerImages.length > 0) {
+      return landpage.bannerImages;
+    }
+    return landpage.bannerImage ? [landpage.bannerImage] : [];
+  }, [landpage.bannerImage, landpage.bannerImages]);
+
+  useEffect(() => {
+    if (bannerList.length <= 1) return;
+    const interval = setInterval(() => {
+      setCurrentBannerIndex(prev => (prev + 1) % bannerList.length);
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [bannerList]);
 
   // Track stock constraints for quantity selects
   const activeDetailProductMaxStock = useMemo(() => {
@@ -86,9 +110,9 @@ export default function StoreFront({ state, onPlaceOrder, onBackToAdmin }: Store
     return sizeStock ? sizeStock.stock : 0;
   }, [viewingProduct, selectedDetailSize]);
 
-  // Load active notice
+  // Load active notices (Top bar and Centered Popup separately)
   useEffect(() => {
-    const activeNotice = avisos.find(a => a.active);
+    const activeNotice = avisos.find(a => a.active && (!a.type || a.type === "top_bar"));
     if (activeNotice) {
       setCurrentAviso(activeNotice.message);
       if (activeNotice.displayTimeSeconds > 0) {
@@ -97,6 +121,27 @@ export default function StoreFront({ state, onPlaceOrder, onBackToAdmin }: Store
         }, activeNotice.displayTimeSeconds * 1000);
         return () => clearTimeout(t);
       }
+    } else {
+      setCurrentAviso(null);
+    }
+  }, [avisos]);
+
+  useEffect(() => {
+    const activeCenteredNotice = avisos.find(a => a.active && a.type === "centered_popup");
+    if (activeCenteredNotice) {
+      const closedList = sessionStorage.getItem("closed_popups");
+      const closedIds = closedList ? JSON.parse(closedList) : [];
+      if (!closedIds.includes(activeCenteredNotice.id)) {
+        setCurrentCenteredPopup(activeCenteredNotice);
+        if (activeCenteredNotice.displayTimeSeconds > 0) {
+          const t = setTimeout(() => {
+            setCurrentCenteredPopup(null);
+          }, activeCenteredNotice.displayTimeSeconds * 1000);
+          return () => clearTimeout(t);
+        }
+      }
+    } else {
+      setCurrentCenteredPopup(null);
     }
   }, [avisos]);
 
@@ -307,7 +352,20 @@ export default function StoreFront({ state, onPlaceOrder, onBackToAdmin }: Store
       return;
     }
 
-    const promo = promotions.find(p => p.code.toUpperCase() === upperInput && p.active);
+    const promo = promotions.find(p => {
+      if (p.code.toUpperCase() !== upperInput || !p.active) return false;
+      if (p.durationValue && p.durationUnit && p.durationUnit !== "ilimitado" && p.createdAt) {
+        const createdTime = new Date(p.createdAt).getTime();
+        let durationMs = 0;
+        if (p.durationUnit === "minutos") durationMs = p.durationValue * 60 * 1000;
+        else if (p.durationUnit === "horas") durationMs = p.durationValue * 60 * 60 * 1000;
+        else if (p.durationUnit === "dias") durationMs = p.durationValue * 24 * 60 * 60 * 1000;
+
+        const isExpired = (createdTime + durationMs) < Date.now();
+        if (isExpired) return false;
+      }
+      return true;
+    });
     if (promo) {
       setAppliedCoupon({
         code: promo.code,
@@ -1236,7 +1294,7 @@ export default function StoreFront({ state, onPlaceOrder, onBackToAdmin }: Store
             <div className="max-w-7xl mx-auto px-4 md:px-8 flex flex-col md:flex-row items-center gap-8 relative z-10">
               <div className="space-y-5 md:w-1/2">
                 <span className="bg-gradient-to-r from-pink-400 to-blue-400 text-white text-[10px] font-extrabold uppercase tracking-wider px-3.5 py-1.5 rounded-full inline-flex items-center gap-1.5 shadow-sm">
-                  ✨ 🧸 Mundo Feliz Kids • Nova Coleção
+                  {landpage.topBadgeText || "✨ 🧸 Mundo Feliz Kids • Nova Coleção"}
                 </span>
                 <h2 className="text-4xl md:text-5.5xl font-extrabold text-gray-900 leading-tight serif-font">
                   {landpage.heroTitle} <span className="inline-block hover:scale-125 transition duration-200">🧸</span>
@@ -1248,13 +1306,13 @@ export default function StoreFront({ state, onPlaceOrder, onBackToAdmin }: Store
                 {/* Quick trust badges */}
                 <div className="flex flex-wrap gap-2.5 pt-1">
                   <span className="bg-white/90 border border-pink-100 rounded-full px-3 py-1 text-xs text-pink-600 font-bold flex items-center gap-1 shadow-sm">
-                    🌸 100% Algodão
+                    {landpage.badge1Icon || "🌸"} {landpage.badge1Text || "100% Algodão"}
                   </span>
                   <span className="bg-white/90 border border-blue-100 rounded-full px-3 py-1 text-xs text-blue-600 font-bold flex items-center gap-1 shadow-sm">
-                    ☁️ Toque Macio
+                    {landpage.badge2Icon || "☁️"} {landpage.badge2Text || "Toque Macio"}
                   </span>
                   <span className="bg-white/90 border border-amber-100 rounded-full px-3 py-1 text-xs text-amber-600 font-bold flex items-center gap-1 shadow-sm">
-                    🍼 Hipoalergênico
+                    {landpage.badge3Icon || "🍼"} {landpage.badge3Text || "Hipoalergênico"}
                   </span>
                 </div>
 
@@ -1266,20 +1324,44 @@ export default function StoreFront({ state, onPlaceOrder, onBackToAdmin }: Store
                 </div>
               </div>
       
-              {landpage.bannerImage && (
+              {bannerList.length > 0 && (
                 <div className="md:w-1/2 w-full h-72 md:h-[380px] overflow-hidden relative rounded-[2.5rem] border-4 border-white shadow-xl hover:shadow-2xl transition duration-300">
-                  <img 
-                    src={landpage.bannerImage} 
-                    alt="Banner Real" 
-                    className="w-full h-full object-cover"
-                    style={{ objectFit: "cover" }}
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
+                  <AnimatePresence mode="wait">
+                    <motion.img 
+                      key={currentBannerIndex}
+                      src={bannerList[currentBannerIndex]} 
+                      alt="Banner Real" 
+                      initial={{ opacity: 0, scale: 1.05 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      transition={{ duration: 0.5 }}
+                      className="absolute inset-0 w-full h-full object-cover"
+                      style={{ objectFit: "cover" }}
+                    />
+                  </AnimatePresence>
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none"></div>
                   {/* Adorable little tag */}
-                  <div className="absolute bottom-4 right-4 bg-white/90 backdrop-blur-sm px-4 py-2 rounded-2xl shadow-md border border-gray-100 flex items-center gap-1.5">
-                    <span className="text-base">👗</span>
-                    <span className="text-[10px] uppercase font-extrabold text-gray-700 tracking-wider">Moda Infantil Premium</span>
+                  <div className="absolute bottom-4 right-4 bg-white/90 backdrop-blur-sm px-4 py-2 rounded-2xl shadow-md border border-gray-100 flex items-center gap-1.5 z-20">
+                    <span className="text-base">{landpage.bannerTagIcon || "👗"}</span>
+                    <span className="text-[10px] uppercase font-extrabold text-gray-700 tracking-wider">
+                      {landpage.bannerTagText || "Moda Infantil Premium"}
+                    </span>
                   </div>
+
+                  {/* Indicator dots for multiple banners */}
+                  {bannerList.length > 1 && (
+                    <div className="absolute bottom-4 left-4 flex gap-1.5 z-20 bg-black/20 px-2 py-1 rounded-full backdrop-blur-sm">
+                      {bannerList.map((_, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => setCurrentBannerIndex(idx)}
+                          className={`w-2 h-2 rounded-full transition-all duration-300 ${
+                            currentBannerIndex === idx ? "bg-white scale-125" : "bg-white/40"
+                          }`}
+                        />
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1489,7 +1571,7 @@ export default function StoreFront({ state, onPlaceOrder, onBackToAdmin }: Store
               className="bg-white rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl border border-[#e0e0d6]"
             >
               <div className="relative aspect-[16/10] bg-[#f9f9f5]">
-                <img src={viewingProduct.image} className="w-full h-full object-cover" alt="" />
+                <img src={selectedImage || viewingProduct.image} className="w-full h-full object-cover" alt="" />
                 <button
                   onClick={() => setViewingProduct(null)}
                   className="absolute top-3 right-3 bg-black/60 text-white p-1.5 rounded-full hover:bg-black/80 transition"
@@ -1497,6 +1579,26 @@ export default function StoreFront({ state, onPlaceOrder, onBackToAdmin }: Store
                   <X className="w-4 h-4" />
                 </button>
               </div>
+
+              {/* Multiple images thumbnail row */}
+              {viewingProduct.images && viewingProduct.images.length > 1 && (
+                <div className="flex gap-2 px-6 pt-3 overflow-x-auto pb-1">
+                  {viewingProduct.images.map((img, index) => {
+                    const isSelected = selectedImage ? img === selectedImage : img === viewingProduct.image;
+                    return (
+                      <button
+                        key={index}
+                        onClick={() => setSelectedImage(img)}
+                        className={`w-12 h-12 rounded-lg overflow-hidden border-2 shrink-0 transition ${
+                          isSelected ? "border-[#5A5A40] scale-105" : "border-transparent opacity-70 hover:opacity-100"
+                        }`}
+                      >
+                        <img src={img} className="w-full h-full object-cover" alt="" />
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
 
               <div className="p-6 space-y-4">
                 <div>
@@ -1735,6 +1837,74 @@ export default function StoreFront({ state, onPlaceOrder, onBackToAdmin }: Store
 
       {/* Modern custom PWA App install prompt hud */}
       <PwaInstallPrompt pwaConfig={state.pwa} accentColor={accentColor} />
+
+      {/* Centered Notice Popup Modal */}
+      <AnimatePresence>
+        {currentCenteredPopup && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="bg-white rounded-3xl max-w-sm w-full overflow-hidden shadow-2xl border border-[#e0e0d6]/50 flex flex-col items-center p-6 text-center space-y-4 relative"
+            >
+              <button
+                onClick={() => {
+                  const closedList = sessionStorage.getItem("closed_popups");
+                  const closedIds = closedList ? JSON.parse(closedList) : [];
+                  sessionStorage.setItem("closed_popups", JSON.stringify([...closedIds, currentCenteredPopup.id]));
+                  setCurrentCenteredPopup(null);
+                }}
+                className="absolute top-3.5 right-3.5 bg-gray-100 hover:bg-gray-200 text-gray-700 p-1.5 rounded-full transition"
+                title="Fechar"
+              >
+                <X className="w-4 h-4" />
+              </button>
+
+              {currentCenteredPopup.image && (
+                <div className="w-full aspect-[4/3] rounded-2xl overflow-hidden bg-gray-50 border border-gray-100">
+                  <img src={currentCenteredPopup.image} className="w-full h-full object-cover" alt="" />
+                </div>
+              )}
+
+              <div className="space-y-1">
+                <span className="text-[10px] uppercase font-bold tracking-widest text-[#5A5A40] bg-[#5A5A40]/10 px-2.5 py-1 rounded-full">
+                  {currentCenteredPopup.title || "Aviso da Loja"}
+                </span>
+                <p className="text-sm font-bold text-gray-900 pt-1 leading-snug">
+                  {currentCenteredPopup.message}
+                </p>
+              </div>
+
+              {/* Action buttons */}
+              <div className="w-full pt-1 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(currentCenteredPopup.message);
+                    showToast("Copiado para a área de transferência! 🎉", "success");
+                  }}
+                  className="flex-1 bg-[#5A5A40] hover:bg-[#484833] text-white font-bold py-2.5 rounded-xl text-xs transition flex items-center justify-center gap-1"
+                >
+                  <Sparkles className="w-3.5 h-3.5" /> Copiar Texto / Cupom
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const closedList = sessionStorage.getItem("closed_popups");
+                    const closedIds = closedList ? JSON.parse(closedList) : [];
+                    sessionStorage.setItem("closed_popups", JSON.stringify([...closedIds, currentCenteredPopup.id]));
+                    setCurrentCenteredPopup(null);
+                  }}
+                  className="px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold rounded-xl text-xs transition"
+                >
+                  Fechar
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
     </div>
   );

@@ -22,7 +22,9 @@ export default function AdminPDV({ state, onAddOrder }: AdminPDVProps) {
   // Client info form
   const [clientName, setClientName] = useState("");
   const [clientWhatsapp, setClientWhatsapp] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState<"Pix" | "Cartão de Crédito" | "Cartão de Débito" | "Boleto">("Pix");
+  const [paymentMethod, setPaymentMethod] = useState<"Pix" | "Cartão de Crédito" | "Cartão de Débito" | "Boleto" | "Dinheiro">("Pix");
+  const [cashAmountGiven, setCashAmountGiven] = useState<string>("");
+  const [deliveryType, setDeliveryType] = useState<"retirada" | "entrega">("retirada");
   const [selectedNeighborhoodId, setSelectedNeighborhoodId] = useState<string>("");
   const [customObservations, setCustomObservations] = useState("");
   const [promoCouponCode, setPromoCouponCode] = useState("");
@@ -57,17 +59,24 @@ export default function AdminPDV({ state, onAddOrder }: AdminPDVProps) {
   }, [appliedCoupon, subtotal]);
 
   const shippingCost = useMemo(() => {
+    if (deliveryType === "retirada") return 0;
     if (shippingType === "fixo") return shippingFixedCost;
     if (shippingType === "bairro") {
       const neigh = shippingNeighborhoods.find(n => n.id === selectedNeighborhoodId);
       return neigh ? neigh.cost : 0;
     }
     return 0; // Combinar com o cliente
-  }, [shippingType, selectedNeighborhoodId, shippingNeighborhoods, shippingFixedCost]);
+  }, [deliveryType, shippingType, selectedNeighborhoodId, shippingNeighborhoods, shippingFixedCost]);
 
   const total = useMemo(() => {
     return Math.max(0, subtotal - discountAmount + shippingCost);
   }, [subtotal, discountAmount, shippingCost]);
+
+  const changeAmount = useMemo(() => {
+    if (paymentMethod !== "Dinheiro") return 0;
+    const givenNum = parseFloat(cashAmountGiven) || 0;
+    return Math.max(0, givenNum - total);
+  }, [paymentMethod, cashAmountGiven, total]);
 
   // Add Item with Size Selection inside PDV register
   const handleAddProductToPdv = (prod: Product, size: string) => {
@@ -139,6 +148,9 @@ export default function AdminPDV({ state, onAddOrder }: AdminPDVProps) {
       setCustomObservations("");
       setAppliedCoupon(null);
       setPromoCouponCode("");
+      setCashAmountGiven("");
+      setDeliveryType("retirada");
+      setSelectedNeighborhoodId("");
     }
   };
 
@@ -175,7 +187,9 @@ export default function AdminPDV({ state, onAddOrder }: AdminPDVProps) {
       ? shippingNeighborhoods.find(n => n.id === selectedNeighborhoodId)?.neighborhood || "Geral"
       : "";
 
-    const shippingText = shippingType === "bairro"
+    const shippingText = deliveryType === "retirada"
+      ? "Retirada Balcão / Retirada"
+      : shippingType === "bairro"
       ? `Entrega Bairro: ${neighborhoodName}`
       : shippingType === "combinar"
       ? "Entrega a Combinar"
@@ -195,11 +209,14 @@ export default function AdminPDV({ state, onAddOrder }: AdminPDVProps) {
       items: orderItems,
       subtotal,
       shippingCost,
-      shippingType,
+      shippingType: deliveryType === "retirada" ? "retirada" : shippingType,
       shippingDetails: finalNotes,
       total,
       status: "aprovado", // Sales directly in PDV are immediately auto-approved!
-      observations: finalNotes
+      observations: finalNotes,
+      cashAmountGiven: paymentMethod === "Dinheiro" ? (parseFloat(cashAmountGiven) || total) : undefined,
+      cashChange: paymentMethod === "Dinheiro" ? changeAmount : undefined,
+      deliveryType: deliveryType
     };
 
     onAddOrder(newOrder);
@@ -211,6 +228,9 @@ export default function AdminPDV({ state, onAddOrder }: AdminPDVProps) {
     setCustomObservations("");
     setAppliedCoupon(null);
     setPromoCouponCode("");
+    setCashAmountGiven("");
+    setDeliveryType("retirada");
+    setSelectedNeighborhoodId("");
     alert(`Venda PDV faturada com sucesso! Código Gerado: ${code}`);
   };
 
@@ -430,21 +450,77 @@ export default function AdminPDV({ state, onAddOrder }: AdminPDVProps) {
               </div>
             </div>
 
+            {/* Tipo de Pedido: Retirada ou Entrega */}
             <div>
-              <label className="block text-[9px] uppercase font-bold text-gray-400 mb-0.5">Método de Pagamento (Dinheiro tirado)</label>
+              <label className="block text-[9px] uppercase font-bold text-gray-400 mb-1">Tipo de Entrega / Retirada</label>
+              <div className="flex gap-1.5 bg-gray-100 p-1 rounded-xl">
+                <button
+                  type="button"
+                  onClick={() => setDeliveryType("retirada")}
+                  className={`flex-1 py-1 px-2.5 rounded-lg text-[10px] font-bold transition-all ${
+                    deliveryType === "retirada"
+                      ? "bg-[#5A5A40] text-white shadow-sm"
+                      : "text-gray-600 hover:text-gray-900"
+                  }`}
+                >
+                  🛍️ Retirada
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDeliveryType("entrega")}
+                  className={`flex-1 py-1 px-2.5 rounded-lg text-[10px] font-bold transition-all ${
+                    deliveryType === "entrega"
+                      ? "bg-[#5A5A40] text-white shadow-sm"
+                      : "text-gray-600 hover:text-gray-900"
+                  }`}
+                >
+                  🚚 Entrega / Delivery
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[9px] uppercase font-bold text-gray-400 mb-0.5">Método de Pagamento</label>
               <select
                 value={paymentMethod}
                 onChange={(e) => setPaymentMethod(e.target.value as any)}
                 className="w-full px-2.5 py-1.5 text-xs bg-gray-50 border border-[#e0e0d6] rounded-xl focus:outline-none focus:border-[#5A5A40]"
               >
                 <option value="Pix">🔑 Pix</option>
+                <option value="Dinheiro">💵 Dinheiro</option>
                 <option value="Cartão de Crédito">💳 Cartão de Crédito</option>
                 <option value="Cartão de Débito">💳 Cartão de Débito</option>
                 <option value="Boleto">📄 Boleto Bancário</option>
               </select>
             </div>
 
-            {shippingType === "bairro" && (
+            {paymentMethod === "Dinheiro" && (
+              <div className="bg-green-50 p-3 rounded-2xl border border-green-100 space-y-2">
+                <div>
+                  <label className="block text-[9px] uppercase font-bold text-green-700 mb-0.5">Valor em Dinheiro Recebido *</label>
+                  <div className="relative">
+                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-green-600">R$</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      placeholder={total.toFixed(2)}
+                      value={cashAmountGiven}
+                      onChange={(e) => setCashAmountGiven(e.target.value)}
+                      className="w-full pl-8 pr-2.5 py-1.5 text-xs bg-white border border-green-200 rounded-xl focus:outline-none text-green-900 font-bold font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-green-700 font-semibold">Troco a Devolver:</span>
+                  <span className="text-base font-black text-green-800 font-mono">
+                    R$ {changeAmount.toFixed(2)}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {deliveryType === "entrega" && shippingType === "bairro" && (
               <div>
                 <label className="block text-[9px] uppercase font-bold text-gray-400 mb-0.5">Entrega Bairro</label>
                 <select
