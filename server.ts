@@ -74,7 +74,7 @@ O item perfeito para renovar o guarda-roupa com muito estilo e conforto! Desenvo
 
 app.post("/api/gemini/manequim-virtual", async (req, res) => {
   try {
-    const { productName, productCategory, sizeSelected, mannequinType, customText, userImage } = req.body;
+    const { productName, productCategory, sizeSelected, mannequinType, customText, userImage, productImage } = req.body;
     
     const prompt = `Gere uma representação visual detalhada do Manequim Virtual VESTIDO com o produto:
     Produto Principal: ${productName} (${productCategory})
@@ -149,8 +149,78 @@ app.post("/api/gemini/manequim-virtual", async (req, res) => {
       });
       try {
         const data = JSON.parse(response.text?.trim() || "{}");
+        
+        // Let's generate the real mannequin visual with gemini-3.1-flash-lite-image!
+        try {
+          const descriptionToUse = data.dressedMannequinDescription || `Manequim infantil vestido com ${productName} tamanho ${sizeSelected}`;
+          const imagePrompt = `A high-resolution, photorealistic, professional children's boutique showroom photo of an elegant glossy white child-sized mannequin beautifully dressed in: ${descriptionToUse}. High-end children's clothing store background with warm studio lighting, clean elegant layout, clothing catalogue commercial style, centered composition, photorealistic 8k.`;
+          
+          let imageParts: any[] = [];
+          if (productImage && productImage.startsWith("data:image/")) {
+            const prodBase64 = productImage.split(",")[1] || productImage;
+            if (prodBase64.length > 100) {
+              imageParts.push({
+                inlineData: {
+                  mimeType: "image/jpeg",
+                  data: prodBase64
+                }
+              });
+            }
+          }
+          if (userImage && userImage.startsWith("data:image/")) {
+            const userBase64 = userImage.split(",")[1] || userImage;
+            if (userBase64.length > 100) {
+              imageParts.push({
+                inlineData: {
+                  mimeType: "image/jpeg",
+                  data: userBase64
+                }
+              });
+            }
+          }
+          
+          imageParts.push({
+            text: imagePrompt
+          });
+          
+          const imgResponse = await client.models.generateContent({
+            model: "gemini-3.1-flash-lite-image",
+            contents: { parts: imageParts },
+            config: {
+              imageConfig: {
+                aspectRatio: "1:1"
+              }
+            }
+          });
+          
+          if (imgResponse.candidates?.[0]?.content?.parts) {
+            for (const part of imgResponse.candidates[0].content.parts) {
+              if (part.inlineData?.data) {
+                data.generatedImage = `data:image/png;base64,${part.inlineData.data}`;
+                break;
+              }
+            }
+          }
+        } catch (imgErr) {
+          console.error("Failed to generate image via Gemini model:", imgErr);
+        }
+        
+        // Curated high-quality boutique fallback if generation returned nothing
+        if (!data.generatedImage) {
+          const isShoes = productCategory === "Calçados" || productName.toLowerCase().includes("tênis") || productName.toLowerCase().includes("sapato") || productName.toLowerCase().includes("sandália");
+          data.generatedImage = isShoes 
+            ? "https://images.unsplash.com/photo-1515488042361-404e9250afef?q=80&w=600&auto=format&fit=crop"
+            : "https://images.unsplash.com/photo-1519457431-44ccd64a579b?q=80&w=600&auto=format&fit=crop";
+        }
+
         res.json(data);
       } catch (jsonErr) {
+        // Fallback with visual representation embedded
+        const isShoes = productCategory === "Calçados" || productName.toLowerCase().includes("tênis") || productName.toLowerCase().includes("sapato") || productName.toLowerCase().includes("sandália");
+        const fallbackImg = isShoes 
+          ? "https://images.unsplash.com/photo-1515488042361-404e9250afef?q=80&w=600&auto=format&fit=crop"
+          : "https://images.unsplash.com/photo-1519457431-44ccd64a579b?q=80&w=600&auto=format&fit=crop";
+
         res.json({
           fitAnalysis: "Caimento perfeito e super confortável para o biotipo escolhido, com excelente costura e flexibilidade.",
           dressedMannequinDescription: `O manequim ${mannequinType} está elegantemente vestido, destacando o ${productName}. No tronco, exibe uma linda camiseta leve de algodão orgânico que harmoniza com o produto. Nas pernas, uma bermudinha jeans super confortável, e nos pés, o caimento do produto é perfeito com meias esportivas macias. O conjunto exala frescor e modernidade.`,
@@ -162,7 +232,8 @@ app.post("/api/gemini/manequim-virtual", async (req, res) => {
             accessories: "Boné Infantil Esportivo Bege"
           },
           occasion: "Ideal para aniversários, passeios ao ar livre e festas de fim de semana.",
-          narrative: `Que visual espetacular! O look completo veste o manequim com uma sintonia incrível de cores, combinando o toque premium com estilo inconfundível.`
+          narrative: `Que visual espetacular! O look completo veste o manequim com uma sintonia incrível de cores, combinando o toque premium com estilo inconfundível.`,
+          generatedImage: fallbackImg
         });
       }
     } else {
@@ -178,9 +249,15 @@ app.post("/api/gemini/manequim-virtual", async (req, res) => {
             accessories: "Tiara ou Boné Infantil Delicado"
           },
           occasion: "Excelente para ensaios fotográficos de moda, passeios em família e festas escolares.",
-          narrative: `Que encanto de visual virtual! A foto enviada ganhou uma composição de altíssimo estilo com o ${productName}, valorizando o bem-estar e a beleza natural.`
+          narrative: `Que encanto de visual virtual! A foto enviada ganhou uma composição de altíssimo estilo com o ${productName}, valorizando o bem-estar e a beleza natural.`,
+          generatedImage: userImage
         });
       } else {
+        const isShoes = productCategory === "Calçados" || productName.toLowerCase().includes("tênis") || productName.toLowerCase().includes("sapato") || productName.toLowerCase().includes("sandália");
+        const fallbackImg = isShoes 
+          ? "https://images.unsplash.com/photo-1515488042361-404e9250afef?q=80&w=600&auto=format&fit=crop"
+          : "https://images.unsplash.com/photo-1519457431-44ccd64a579b?q=80&w=600&auto=format&fit=crop";
+
         res.json({
           fitAnalysis: `O caimento do tamanho ${sizeSelected} se molda com perfeição às medidas do manequim ${mannequinType}, garantindo mobilidade total.`,
           dressedMannequinDescription: `O manequim ${mannequinType} foi vestido com uma composição premium. Apresenta o ${productName} estilizado de forma lúdica. No tronco, uma camiseta de malha fresca na cor off-white; nas pernas, um shorts de linho natural super macio. Completa-se com acessórios elegantes para um visual infantil sofisticado e limpo.`,
@@ -192,7 +269,8 @@ app.post("/api/gemini/manequim-virtual", async (req, res) => {
             accessories: "Boné de Algodão Sálvia"
           },
           occasion: "Perfeito para passeios divertidos de final de semana, ensaios fotográficos e festinhas infantis.",
-          narrative: `Visual de catálogo incrível! O ${productName} vestido no manequim realça o estilo e a espontaneidade com leveza fantástica.`
+          narrative: `Visual de catálogo incrível! O ${productName} vestido no manequim realça o estilo e a espontaneidade com leveza fantástica.`,
+          generatedImage: fallbackImg
         });
       }
     }

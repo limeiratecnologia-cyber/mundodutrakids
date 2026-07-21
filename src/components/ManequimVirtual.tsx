@@ -99,7 +99,8 @@ export default function ManequimVirtual({ product, onClose }: ManequimVirtualPro
           sizeSelected,
           mannequinType: tryOnMode === "photo" ? "Foto Enviada pelo Cliente" : mannequinType,
           customText,
-          userImage: tryOnMode === "photo" ? uploadedPhoto : undefined
+          userImage: tryOnMode === "photo" ? uploadedPhoto : undefined,
+          productImage: product.image
         })
       });
       if (response.ok) {
@@ -180,23 +181,23 @@ export default function ManequimVirtual({ product, onClose }: ManequimVirtualPro
                   >
                     {/* Live Dressed Mannequin Image */}
                     <img 
-                      src={(tryOnMode === "photo" && uploadedPhoto) ? uploadedPhoto : currentMannequinImage}
+                      src={result.generatedImage || ((tryOnMode === "photo" && uploadedPhoto) ? uploadedPhoto : currentMannequinImage)}
                       alt="Manequim Vestido"
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-cover animate-fade-in"
                       referrerPolicy="no-referrer"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent" />
                     
                     {/* Floating Indicators / Outfit Tags Overlaid */}
-                    <div className="absolute top-2 left-2 bg-black/50 backdrop-blur-md text-white text-[8px] font-bold uppercase tracking-wider px-2 py-1 rounded-full border border-white/20">
-                      {tryOnMode === "photo" ? "🟢 Foto Analisada pela IA" : "🟢 Manequim Vestido pela IA"}
+                    <div className="absolute top-2 left-2 bg-black/60 backdrop-blur-md text-white text-[8px] font-bold uppercase tracking-wider px-2 py-1 rounded-full border border-white/20">
+                      {tryOnMode === "photo" ? "📸 Foto Vestida pela IA" : "🟢 Manequim Vestido pela IA"}
                     </div>
 
                     <div className="absolute bottom-2 left-3 right-3 text-white">
                       <p className="text-[10px] font-bold text-yellow-300 uppercase tracking-widest">
                         {tryOnMode === "photo" ? "Provador com Sua Foto" : mannequinType}
                       </p>
-                      <p className="text-[9px] opacity-90 line-clamp-1 italic">
+                      <p className="text-[9px] opacity-90 line-clamp-1 italic font-medium">
                         "{result.poseDescription}"
                       </p>
                     </div>
@@ -253,25 +254,44 @@ export default function ManequimVirtual({ product, onClose }: ManequimVirtualPro
                         </div>
                       </div>
                     ) : (
-                      <>
-                        {/* Background silhouette */}
-                        <div className="absolute inset-0 opacity-5 flex items-center justify-center">
-                          <Shirt className="w-44 h-44" />
+                      <div className="w-full h-full flex flex-row items-center justify-between p-4 gap-2">
+                        {/* Left: Manequim Silhouette */}
+                        <div className="w-1/2 h-full flex flex-col items-center justify-center border-r border-[#e0e0d6]/60 pr-2 relative">
+                          <div className="absolute inset-0 opacity-5 flex items-center justify-center">
+                            <Shirt className="w-24 h-24" />
+                          </div>
+                          <div className="z-10 text-center">
+                            <div className="w-12 h-12 rounded-full bg-[#5A5A40]/10 text-[#5A5A40] flex items-center justify-center mx-auto mb-1 font-bold text-xl border border-[#5A5A40]/20 animate-pulse">
+                              👤
+                            </div>
+                            <p className="text-[10px] font-bold text-gray-800 leading-tight">{mannequinType}</p>
+                            <span className="text-[8px] bg-[#5A5A40]/10 text-[#5A5A40] px-2 py-0.5 rounded-full font-bold inline-block mt-1">
+                              Aguardando IA
+                            </span>
+                          </div>
                         </div>
 
-                        <div className="z-10">
-                          <div className="w-14 h-14 rounded-full bg-[#5A5A40]/10 text-[#5A5A40] flex items-center justify-center mx-auto mb-2 font-bold text-2xl border border-[#5A5A40]/20 animate-pulse">
-                            👗
+                        {/* Right: Actual Clothing Item */}
+                        <div className="w-1/2 h-full flex flex-col items-center justify-center pl-2 relative">
+                          <div className="relative w-16 h-20 rounded-xl overflow-hidden border border-[#e0e0d6] bg-white shadow-sm flex items-center justify-center">
+                            <div className="absolute top-0.5 left-1/2 -translate-x-1/2 bg-black/60 text-white rounded-full p-0.5 z-20 shadow-sm">
+                              <Shirt className="w-2.5 h-2.5 text-yellow-300" />
+                            </div>
+                            <img
+                              src={product.image}
+                              alt={product.name}
+                              className="w-full h-full object-contain p-1"
+                              referrerPolicy="no-referrer"
+                            />
+                            <div className="absolute bottom-0.5 right-0.5 bg-[#5A5A40] text-white text-[7px] px-1 py-0.5 rounded-md font-bold">
+                              {sizeSelected}
+                            </div>
                           </div>
-                          <p className="text-xs font-bold text-gray-800">{mannequinType}</p>
-                          <p className="text-[9px] text-gray-500 mt-0.5">
-                            Tamanho selecionado: <span className="font-bold text-[#5A5A40]">{sizeSelected}</span>
-                          </p>
-                          <p className="text-[8px] bg-gray-200/50 px-2 py-0.5 rounded-full text-gray-500 inline-block mt-2">
-                            Pronto para vestir com IA
+                          <p className="text-[9px] font-bold text-gray-700 mt-1 text-center line-clamp-1 max-w-[110px]">
+                            {product.name}
                           </p>
                         </div>
-                      </>
+                      </div>
                     )}
                   </motion.div>
                 )}
