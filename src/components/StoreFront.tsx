@@ -6,7 +6,6 @@ import {
   Send, Sparkles, MessageCircle, AlertCircle, Sparkle, Percent, MapPin, Trash2
 } from "lucide-react";
 import { SystemState, Product, Order, OrderItem, Aviso } from "../types";
-import ManequimVirtual from "./ManequimVirtual";
 import YoutubeEmbed from "./YoutubeEmbed";
 import FloatingParticles from "./FloatingParticles";
 import PwaInstallPrompt from "./PwaInstallPrompt";
@@ -50,7 +49,6 @@ export default function StoreFront({ state, onPlaceOrder, onBackToAdmin }: Store
   };
 
   // Modal / Interaction States
-  const [activeManequimProduct, setActiveManequimProduct] = useState<Product | null>(null);
   const [viewingProduct, setViewingProduct] = useState<Product | null>(null);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [selectedDetailSize, setSelectedDetailSize] = useState<string>("");
@@ -1563,7 +1561,7 @@ export default function StoreFront({ state, onPlaceOrder, onBackToAdmin }: Store
                         </span>
                       </div>
 
-                      <div className="mt-3 grid grid-cols-2 gap-1.5">
+                      <div className="mt-3">
                         {/* Quick View Button */}
                         <button
                           onClick={() => {
@@ -1571,17 +1569,9 @@ export default function StoreFront({ state, onPlaceOrder, onBackToAdmin }: Store
                             const firstAvailableSize = prod.sizes.find(s => s.stock > 0)?.size || "";
                             setSelectedDetailSize(firstAvailableSize);
                           }}
-                          className="text-[10px] font-bold text-[#5A5A40] border border-[#e0e0d6] py-1.5 rounded-lg hover:bg-gray-50 transition flex items-center justify-center gap-1"
+                          className="w-full text-xs font-bold text-[#5A5A40] border border-[#e0e0d6] bg-gray-50/50 py-2 rounded-lg hover:bg-gray-100 transition flex items-center justify-center gap-1.5"
                         >
-                          <Eye className="w-3.5 h-3.5" /> Detalhes
-                        </button>
-
-                        {/* Manequim Virtual Action Button */}
-                        <button
-                          onClick={() => setActiveManequimProduct(prod)}
-                          className="text-[10px] font-bold bg-[#5A5A40] hover:bg-[#484833] text-white py-1.5 rounded-lg transition flex items-center justify-center gap-1"
-                        >
-                          <Sparkles className="w-3.5 h-3.5 animate-pulse" /> Manequim
+                          <Eye className="w-4 h-4" /> Ver Detalhes
                         </button>
                       </div>
                     </div>
@@ -1757,15 +1747,6 @@ export default function StoreFront({ state, onPlaceOrder, onBackToAdmin }: Store
         )}
       </AnimatePresence>
 
-      {/* Manequim Virtual Modal Trigger */}
-      <AnimatePresence>
-        {activeManequimProduct && (
-          <ManequimVirtual
-            product={activeManequimProduct}
-            onClose={() => setActiveManequimProduct(null)}
-          />
-        )}
-      </AnimatePresence>
 
       {/* Shopping Cart Drawer */}
       <AnimatePresence>

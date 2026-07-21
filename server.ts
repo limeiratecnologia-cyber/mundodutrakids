@@ -31,6 +31,108 @@ function getGeminiClient(): GoogleGenAI {
   return ai;
 }
 
+/**
+ * Resilient wrapper around client.models.generateContent that tries multiple models in sequence
+ * if one fails (e.g. 503 Service Unavailable or 429 Rate Limit), with exponential backoff retries.
+ */
+async function callGeminiWithFallback(
+  params: {
+    contents: any;
+    config?: any;
+  },
+  preferredModel?: string
+): Promise<any> {
+  const modelsToTry = [
+    preferredModel || "gemini-3.5-flash",
+    "gemini-3.6-flash",
+    "gemini-flash-latest",
+    "gemini-3.1-flash-lite",
+  ];
+
+  // Remove duplicates
+  const uniqueModels = Array.from(new Set(modelsToTry));
+  let lastError: any = null;
+
+  for (const model of uniqueModels) {
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        console.log(`Attempting Gemini Content call with model: ${model} (attempt ${attempt}/2)...`);
+        const client = getGeminiClient();
+        const response = await client.models.generateContent({
+          model,
+          contents: params.contents,
+          config: params.config,
+        });
+        
+        if (response) {
+          console.log(`Successfully completed Gemini call using model: ${model}`);
+          return response;
+        }
+      } catch (err: any) {
+        lastError = err;
+        const errMsg = err.message || JSON.stringify(err);
+        console.warn(`Gemini content generation failed for model ${model} on attempt ${attempt}:`, errMsg);
+        
+        // If it is a 400 Bad Request (not 503 or 429), don't waste time retrying this model
+        if (errMsg.includes("400") && !errMsg.includes("503") && !errMsg.includes("429")) {
+          break;
+        }
+        
+        // Wait 500ms before second attempt
+        if (attempt === 1) {
+          await new Promise((resolve) => setTimeout(resolve, 500));
+        }
+      }
+    }
+  }
+
+  throw lastError || new Error("All Gemini models failed to respond");
+}
+
+/**
+ * Resilient wrapper around client.models.generateImages that tries multiple image models
+ * in sequence, with retries.
+ */
+async function callGeminiImageWithFallback(params: {
+  prompt: string;
+  config?: any;
+}): Promise<any> {
+  const modelsToTry = [
+    "gemini-3.1-flash-lite-image",
+    "gemini-3.1-flash-image",
+  ];
+
+  let lastError: any = null;
+
+  for (const model of modelsToTry) {
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        console.log(`Attempting Gemini Image generation with model: ${model} (attempt ${attempt}/2)...`);
+        const client = getGeminiClient();
+        const response = await client.models.generateImages({
+          model,
+          prompt: params.prompt,
+          config: params.config,
+        });
+        
+        if (response?.generatedImages?.[0]?.image?.imageBytes) {
+          console.log(`Successfully completed Gemini Image generation using model: ${model}`);
+          return response;
+        }
+      } catch (err: any) {
+        lastError = err;
+        console.warn(`Gemini image generation failed for model ${model} on attempt ${attempt}:`, err.message || err);
+        
+        if (attempt === 1) {
+          await new Promise((resolve) => setTimeout(resolve, 500));
+        }
+      }
+    }
+  }
+
+  throw lastError || new Error("All Gemini image generation models failed");
+}
+
 // API Routes
 app.post("/api/gemini/describe-product", async (req, res) => {
   try {
@@ -47,10 +149,9 @@ app.post("/api/gemini/describe-product", async (req, res) => {
 
     const client = getGeminiClient();
     if (process.env.GEMINI_API_KEY) {
-      const response = await client.models.generateContent({
-        model: "gemini-3.5-flash",
+      const response = await callGeminiWithFallback({
         contents: prompt,
-      });
+      }, "gemini-3.5-flash");
       res.json({ description: response.text });
     } else {
       // Simulate high quality description when API Key is missing (e.g. initial dev preview)
@@ -72,214 +173,6 @@ O item perfeito para renovar o guarda-roupa com muito estilo e conforto! Desenvo
   }
 });
 
-app.post("/api/gemini/manequim-virtual", async (req, res) => {
-  try {
-    const { productName, productCategory, sizeSelected, mannequinType, customText, userImage, productImage } = req.body;
-    
-    const prompt = `Gere uma representação visual detalhada do Manequim Virtual VESTIDO com o produto:
-    Produto Principal: ${productName} (${productCategory})
-    Tamanho Escolhido: ${sizeSelected}
-    Biotipo do Manequim / Características: ${mannequinType}
-    Observações do Cliente: ${customText || "Nenhuma"}
-    
-    A IA deve VESTIR o manequim completamente e descrevê-lo, em vez de dar apenas dicas ou conselhos de estilo gerais.
-    
-    Escreva uma resposta em formato JSON com os seguintes campos estruturados:
-    1. "fitAnalysis": Uma análise técnica de como o produto veste o corpo ou tamanho selecionado.
-    2. "dressedMannequinDescription": Descrição narrativa e vívida de como o manequim está vestido da cabeça aos pés, integrando o produto principal de forma linda.
-    3. "poseDescription": A pose ou atitude física do manequim (ex: "Manequim em pose ativa com as mãos na cintura, expressando dinamismo e alegria").
-    4. "outfitComposition": Um objeto contendo as outras peças de roupa que a IA usou para VESTIR o manequim de forma a completar o visual:
-       - "torso": Peça vestida no tronco (ex: "Camiseta de Algodão Listrada Off-White e Azul")
-       - "legs": Peça vestida nas pernas (ex: "Bermuda Jeans Comfort Azul Clara")
-       - "feet": Detalhe dos pés/meias/calçado (ex: "Tênis Confort Run com Meia Branca Canelada")
-       - "accessories": Acessórios vestidos (ex: "Boné Infantil de Sarja Sálvia")
-    5. "occasion": A ocasião perfeita para usar esta combinação de manequim vestido.
-    6. "narrative": Um pequeno texto entusiasmado elogiando o caimento do look completo no manequim.
-    
-    Responda APENAS em formato JSON válido sem formatação markdown extra.`;
-
-    const client = getGeminiClient();
-    if (process.env.GEMINI_API_KEY) {
-      let contents: any;
-      if (userImage) {
-        const base64Data = userImage.split(",")[1] || userImage;
-        const mimeType = "image/jpeg";
-        const imagePart = {
-          inlineData: {
-            mimeType,
-            data: base64Data,
-          },
-        };
-        const textPart = {
-          text: `Você é um estilista infantil inteligente e especialista em provador virtual por IA para a loja "Mundo Dutra Kids".
-          Analise a foto da criança ou do manequim enviada pelo cliente.
-          Imagine que ela está vestindo o produto principal: "${productName}" da categoria "${productCategory}".
-          Tamanho do produto selecionado pelo cliente: ${sizeSelected}.
-          Observações adicionais do cliente: "${customText || "Nenhuma"}".
-          
-          Faça uma análise multimodal precisa da imagem fornecida em relação ao produto de moda selecionado.
-          Responda estritamente em português no seguinte formato JSON válido:
-          {
-            "fitAnalysis": "Análise técnica em português de como o tamanho selecionado ${sizeSelected} se ajustaria e vestiria a pessoa ou o manequim visível na foto, levando em conta silhueta, altura e conforto.",
-            "dressedMannequinDescription": "Descrição em português de como o visual completo fica neles, detalhando a incorporação de ${productName} de forma harmônica e charmosa da cabeça aos pés.",
-            "poseDescription": "Descrição breve da pose identificada na foto enviada (ex: Criança sorridente em pé de braços abertos).",
-            "outfitComposition": {
-              "torso": "Peça sugerida ou identificada para o tronco",
-              "legs": "Peça sugerida ou identificada para as pernas",
-              "feet": "Calçado ideal sugerido para combinar com o produto principal",
-              "accessories": "Acessórios indicados para o look completo"
-            },
-            "occasion": "A ocasião ideal de uso deste look completo (ex: Festa de aniversário infantil ou Passeio no shopping)",
-            "narrative": "Um elogio animado e carinhoso em português sobre o visual impecável do cliente vestindo a peça de forma simulada."
-          }
-          
-          Responda APENAS o JSON válido sem tags de bloco de código markdown.`
-        };
-        contents = { parts: [imagePart, textPart] };
-      } else {
-        contents = prompt;
-      }
-
-      const response = await client.models.generateContent({
-        model: "gemini-3.5-flash",
-        contents,
-        config: {
-          responseMimeType: "application/json",
-        }
-      });
-      try {
-        const data = JSON.parse(response.text?.trim() || "{}");
-        
-        // Let's generate the real mannequin visual with gemini-3.1-flash-lite-image!
-        try {
-          const descriptionToUse = data.dressedMannequinDescription || `Manequim infantil vestido com ${productName} tamanho ${sizeSelected}`;
-          const imagePrompt = `A high-resolution, photorealistic, professional children's boutique showroom photo of an elegant glossy white child-sized mannequin beautifully dressed in: ${descriptionToUse}. High-end children's clothing store background with warm studio lighting, clean elegant layout, clothing catalogue commercial style, centered composition, photorealistic 8k.`;
-          
-          let imageParts: any[] = [];
-          if (productImage && productImage.startsWith("data:image/")) {
-            const prodBase64 = productImage.split(",")[1] || productImage;
-            if (prodBase64.length > 100) {
-              imageParts.push({
-                inlineData: {
-                  mimeType: "image/jpeg",
-                  data: prodBase64
-                }
-              });
-            }
-          }
-          if (userImage && userImage.startsWith("data:image/")) {
-            const userBase64 = userImage.split(",")[1] || userImage;
-            if (userBase64.length > 100) {
-              imageParts.push({
-                inlineData: {
-                  mimeType: "image/jpeg",
-                  data: userBase64
-                }
-              });
-            }
-          }
-          
-          imageParts.push({
-            text: imagePrompt
-          });
-          
-          const imgResponse = await client.models.generateContent({
-            model: "gemini-3.1-flash-lite-image",
-            contents: { parts: imageParts },
-            config: {
-              imageConfig: {
-                aspectRatio: "1:1"
-              }
-            }
-          });
-          
-          if (imgResponse.candidates?.[0]?.content?.parts) {
-            for (const part of imgResponse.candidates[0].content.parts) {
-              if (part.inlineData?.data) {
-                data.generatedImage = `data:image/png;base64,${part.inlineData.data}`;
-                break;
-              }
-            }
-          }
-        } catch (imgErr) {
-          console.error("Failed to generate image via Gemini model:", imgErr);
-        }
-        
-        // Curated high-quality boutique fallback if generation returned nothing
-        if (!data.generatedImage) {
-          const isShoes = productCategory === "Calçados" || productName.toLowerCase().includes("tênis") || productName.toLowerCase().includes("sapato") || productName.toLowerCase().includes("sandália");
-          data.generatedImage = isShoes 
-            ? "https://images.unsplash.com/photo-1515488042361-404e9250afef?q=80&w=600&auto=format&fit=crop"
-            : "https://images.unsplash.com/photo-1519457431-44ccd64a579b?q=80&w=600&auto=format&fit=crop";
-        }
-
-        res.json(data);
-      } catch (jsonErr) {
-        // Fallback with visual representation embedded
-        const isShoes = productCategory === "Calçados" || productName.toLowerCase().includes("tênis") || productName.toLowerCase().includes("sapato") || productName.toLowerCase().includes("sandália");
-        const fallbackImg = isShoes 
-          ? "https://images.unsplash.com/photo-1515488042361-404e9250afef?q=80&w=600&auto=format&fit=crop"
-          : "https://images.unsplash.com/photo-1519457431-44ccd64a579b?q=80&w=600&auto=format&fit=crop";
-
-        res.json({
-          fitAnalysis: "Caimento perfeito e super confortável para o biotipo escolhido, com excelente costura e flexibilidade.",
-          dressedMannequinDescription: `O manequim ${mannequinType} está elegantemente vestido, destacando o ${productName}. No tronco, exibe uma linda camiseta leve de algodão orgânico que harmoniza com o produto. Nas pernas, uma bermudinha jeans super confortável, e nos pés, o caimento do produto é perfeito com meias esportivas macias. O conjunto exala frescor e modernidade.`,
-          poseDescription: "Manequim posicionado de forma alegre, de braços abertos, transmitindo a liberdade para correr e brincar.",
-          outfitComposition: {
-            torso: "Camiseta de Algodão Leve Verde-Oliva",
-            legs: "Bermuda Jeans de Sarja Comfort",
-            feet: `${productCategory === "Calçados" ? productName : "Meias macias e tênis casual"}`,
-            accessories: "Boné Infantil Esportivo Bege"
-          },
-          occasion: "Ideal para aniversários, passeios ao ar livre e festas de fim de semana.",
-          narrative: `Que visual espetacular! O look completo veste o manequim com uma sintonia incrível de cores, combinando o toque premium com estilo inconfundível.`,
-          generatedImage: fallbackImg
-        });
-      }
-    } else {
-      if (userImage) {
-        res.json({
-          fitAnalysis: `O tamanho ${sizeSelected} se molda perfeitamente à silhueta analisada na foto enviada, proporcionando um caimento impecável com excelente liberdade de movimentos.`,
-          dressedMannequinDescription: `Na simulação da foto enviada, o look destaca o ${productName} em tamanho ${sizeSelected}. Combinamos com uma t-shirt de toque aveludado off-white e shorts jeans macio, deixando o visual descontraído, confortável e cheio de personalidade infantil.`,
-          poseDescription: "Pose natural identificada a partir da foto enviada.",
-          outfitComposition: {
-            torso: "Camiseta de Malha Algodão Premium Off-White",
-            legs: "Bermuda Jeans Confortável ou Shorts Casual",
-            feet: `${productCategory === "Calçados" ? productName : "Tênis Infantil Flexível e Macio"}`,
-            accessories: "Tiara ou Boné Infantil Delicado"
-          },
-          occasion: "Excelente para ensaios fotográficos de moda, passeios em família e festas escolares.",
-          narrative: `Que encanto de visual virtual! A foto enviada ganhou uma composição de altíssimo estilo com o ${productName}, valorizando o bem-estar e a beleza natural.`,
-          generatedImage: userImage
-        });
-      } else {
-        const isShoes = productCategory === "Calçados" || productName.toLowerCase().includes("tênis") || productName.toLowerCase().includes("sapato") || productName.toLowerCase().includes("sandália");
-        const fallbackImg = isShoes 
-          ? "https://images.unsplash.com/photo-1515488042361-404e9250afef?q=80&w=600&auto=format&fit=crop"
-          : "https://images.unsplash.com/photo-1519457431-44ccd64a579b?q=80&w=600&auto=format&fit=crop";
-
-        res.json({
-          fitAnalysis: `O caimento do tamanho ${sizeSelected} se molda com perfeição às medidas do manequim ${mannequinType}, garantindo mobilidade total.`,
-          dressedMannequinDescription: `O manequim ${mannequinType} foi vestido com uma composição premium. Apresenta o ${productName} estilizado de forma lúdica. No tronco, uma camiseta de malha fresca na cor off-white; nas pernas, um shorts de linho natural super macio. Completa-se com acessórios elegantes para um visual infantil sofisticado e limpo.`,
-          poseDescription: "Manequim em pose de passos confiantes, transmitindo descontração e diversão em cada movimento.",
-          outfitComposition: {
-            torso: "Camiseta de Malha Algodão Premium Off-White",
-            legs: "Bermuda ou Shorts de Linho Cru",
-            feet: `${productCategory === "Calçados" ? productName : "Tênis Macio com Meias de Algodão"}`,
-            accessories: "Boné de Algodão Sálvia"
-          },
-          occasion: "Perfeito para passeios divertidos de final de semana, ensaios fotográficos e festinhas infantis.",
-          narrative: `Visual de catálogo incrível! O ${productName} vestido no manequim realça o estilo e a espontaneidade com leveza fantástica.`,
-          generatedImage: fallbackImg
-        });
-      }
-    }
-  } catch (error: any) {
-    console.error("Gemini manequim error:", error);
-    res.status(500).json({ error: error.message || "Erro no manequim virtual" });
-  }
-});
-
 app.post("/api/gemini/image-suggestions", async (req, res) => {
   try {
     const { imageData, productName } = req.body;
@@ -287,8 +180,7 @@ app.post("/api/gemini/image-suggestions", async (req, res) => {
     const client = getGeminiClient();
     if (process.env.GEMINI_API_KEY && imageData) {
       const base64Data = imageData.split(",")[1] || imageData;
-      const response = await client.models.generateContent({
-        model: "gemini-3.5-flash",
+      const response = await callGeminiWithFallback({
         contents: [
           {
             inlineData: {
@@ -300,7 +192,7 @@ app.post("/api/gemini/image-suggestions", async (req, res) => {
             text: `Analise a imagem deste produto chamado "${productName || "Produto"}" e sugira melhorias visuais para o fundo, iluminação, além de sugerir tags/palavras-chave em português que destaquem este item na loja.`
           }
         ]
-      });
+      }, "gemini-3.5-flash");
       res.json({ suggestion: response.text });
     } else {
       res.json({
