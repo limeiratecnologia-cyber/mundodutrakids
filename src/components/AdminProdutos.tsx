@@ -40,14 +40,31 @@ export default function AdminProdutos({ products, categories, onAddProduct, onEd
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState<"ativo" | "inativo">("ativo");
   
+  const PALETTE_COLORS = [
+    { name: "Rosa Bebê", hex: "#FFC8D6" },
+    { name: "Azul Bebê", hex: "#C2E0F9" },
+    { name: "Branco", hex: "#FFFFFF" },
+    { name: "Preto", hex: "#2B2B2B" },
+    { name: "Bege", hex: "#F4EAD4" },
+    { name: "Amarelo Claro", hex: "#FFF3B3" },
+    { name: "Verde Claro", hex: "#D0ECC5" },
+    { name: "Lilás", hex: "#E2D5F3" },
+    { name: "Laranja Suave", hex: "#FFD8BE" },
+    { name: "Vermelho", hex: "#E25C5C" },
+    { name: "Azul Marinho", hex: "#2E4A62" },
+    { name: "Cinza", hex: "#D3D3D3" },
+  ];
+
   // Dynamic size grid stock
-  const [sizeGrid, setSizeGrid] = useState<{ size: string; stock: number }[]>([
+  const [sizeGrid, setSizeGrid] = useState<{ size: string; stock: number; color?: string; colorHex?: string; }[]>([
     { size: "P", stock: 5 },
     { size: "M", stock: 8 },
     { size: "G", stock: 4 }
   ]);
   const [newSizeName, setNewSizeName] = useState("");
   const [newSizeStock, setNewSizeStock] = useState<number>(5);
+  const [newSizeColorName, setNewSizeColorName] = useState("");
+  const [newSizeColorHex, setNewSizeColorHex] = useState("");
 
   // AI helper trigger states
   const [generatingDescription, setGeneratingDescription] = useState(false);
@@ -213,6 +230,8 @@ export default function AdminProdutos({ products, categories, onAddProduct, onEd
       { size: "M", stock: 8 },
       { size: "G", stock: 4 }
     ]);
+    setNewSizeColorName("");
+    setNewSizeColorHex("");
     setAiImageFeedback("");
     setIsFormOpen(true);
   };
@@ -229,19 +248,33 @@ export default function AdminProdutos({ products, categories, onAddProduct, onEd
     setDescription(prod.description);
     setStatus(prod.status);
     setSizeGrid(prod.sizes || []);
+    setNewSizeColorName("");
+    setNewSizeColorHex("");
     setAiImageFeedback("");
     setIsFormOpen(true);
   };
 
   const handleAddSizeOption = () => {
     if (!newSizeName.trim()) return;
-    if (sizeGrid.some(s => s.size.toUpperCase() === newSizeName.trim().toUpperCase())) {
-      triggerNotification("Esse tamanho já está adicionado.", "error");
+    const sizeUpper = newSizeName.trim().toUpperCase();
+    const colorUpper = newSizeColorName.trim().toUpperCase();
+    if (sizeGrid.some(s => s.size.toUpperCase() === sizeUpper && (s.color || "").toUpperCase() === colorUpper)) {
+      triggerNotification("Essa variação de tamanho e cor já está adicionada.", "error");
       return;
     }
-    setSizeGrid([...sizeGrid, { size: newSizeName.trim(), stock: newSizeStock }]);
+    setSizeGrid([
+      ...sizeGrid, 
+      { 
+        size: newSizeName.trim(), 
+        stock: newSizeStock,
+        color: newSizeColorName.trim() || undefined,
+        colorHex: newSizeColorHex || undefined
+      }
+    ]);
     setNewSizeName("");
     setNewSizeStock(5);
+    setNewSizeColorName("");
+    setNewSizeColorHex("");
   };
 
   const handleRemoveSizeOption = (idx: number) => {
@@ -532,13 +565,27 @@ export default function AdminProdutos({ products, categories, onAddProduct, onEd
                   </div>             </div>
 
                   {/* Size Options Grid Stock */}
-                  <div className="space-y-1.5 bg-[#fbfbfa] p-3 rounded-2xl border border-[#e0e0d6]/70">
+                  <div className="space-y-2.5 bg-[#fbfbfa] p-3 rounded-2xl border border-[#e0e0d6]/70">
                     <span className="text-[10px] uppercase font-bold text-gray-500 block">Grade de Tamanhos & Estoque:</span>
                     
-                    <div className="max-h-24 overflow-y-auto space-y-1 pr-1">
+                    <div className="max-h-36 overflow-y-auto space-y-1 pr-1">
                       {sizeGrid.map((sz, idx) => (
-                        <div key={idx} className="flex items-center justify-between bg-white px-2 py-1.5 rounded-lg border border-gray-100 text-xs">
-                          <span className="font-bold text-gray-700">{sz.size}</span>
+                        <div key={idx} className="flex items-center justify-between bg-white px-2.5 py-1.5 rounded-lg border border-gray-100 text-xs">
+                          <div className="flex items-center gap-2">
+                            {sz.colorHex && (
+                              <span 
+                                className="w-3.5 h-3.5 rounded-full border border-black/15 inline-block shadow-xs shrink-0" 
+                                style={{ backgroundColor: sz.colorHex }}
+                                title={sz.color}
+                              />
+                            )}
+                            <span className="font-bold text-gray-700">{sz.size}</span>
+                            {sz.color && (
+                              <span className="text-[9px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded truncate max-w-[80px]">
+                                {sz.color}
+                              </span>
+                            )}
+                          </div>
                           <div className="flex items-center gap-2">
                             <span className="text-[10px] text-gray-400">Estoque:</span>
                             <input
@@ -560,27 +607,83 @@ export default function AdminProdutos({ products, categories, onAddProduct, onEd
                       ))}
                     </div>
 
-                    <div className="flex gap-1.5 pt-2 border-t border-gray-100">
-                      <input
-                        type="text"
-                        placeholder="Tam (Ex: G, 4 anos)"
-                        value={newSizeName}
-                        onChange={(e) => setNewSizeName(e.target.value)}
-                        className="flex-1 px-2.5 py-1 text-[11px] bg-white border border-gray-200 rounded-lg focus:outline-none"
-                      />
-                      <input
-                        type="number"
-                        placeholder="Estoque"
-                        value={newSizeStock}
-                        onChange={(e) => setNewSizeStock(parseInt(e.target.value, 10) || 0)}
-                        className="w-14 text-center px-1.5 py-1 text-[11px] bg-white border border-gray-200 rounded-lg focus:outline-none"
-                      />
+                    <div className="space-y-2 pt-2 border-t border-gray-100">
+                      <div className="flex gap-1.5">
+                        <input
+                          type="text"
+                          placeholder="Tam (Ex: G, 4 anos)"
+                          value={newSizeName}
+                          onChange={(e) => setNewSizeName(e.target.value)}
+                          className="flex-1 px-2.5 py-1 text-[11px] bg-white border border-gray-200 rounded-lg focus:outline-none"
+                        />
+                        <input
+                          type="number"
+                          placeholder="Estoque"
+                          value={newSizeStock}
+                          onChange={(e) => setNewSizeStock(parseInt(e.target.value, 10) || 0)}
+                          className="w-14 text-center px-1.5 py-1 text-[11px] bg-white border border-gray-200 rounded-lg focus:outline-none"
+                        />
+                      </div>
+
+                      {/* Color Palette Selector */}
+                      <div className="space-y-1 bg-white p-2 rounded-xl border border-gray-100/80">
+                        <span className="block text-[9px] uppercase font-bold text-gray-400">Paleta de Cores da Peça (Opcional):</span>
+                        <div className="flex flex-wrap gap-1.5 py-1">
+                          {PALETTE_COLORS.map((col) => {
+                            const isSelected = newSizeColorHex === col.hex;
+                            return (
+                              <button
+                                key={col.hex}
+                                type="button"
+                                onClick={() => {
+                                  if (isSelected) {
+                                    setNewSizeColorHex("");
+                                    setNewSizeColorName("");
+                                  } else {
+                                    setNewSizeColorHex(col.hex);
+                                    setNewSizeColorName(col.name);
+                                  }
+                                }}
+                                className="w-8.5 h-8.5 sm:w-6.5 sm:h-6.5 rounded-full border border-black/10 transition relative flex items-center justify-center hover:scale-110 active:scale-95 cursor-pointer shadow-3xs"
+                                style={{ backgroundColor: col.hex }}
+                                title={col.name}
+                              >
+                                {isSelected && (
+                                  <Check className={`w-4.5 h-4.5 sm:w-3.5 sm:h-3.5 ${col.hex === "#FFFFFF" || col.hex === "#FFF3B3" ? "text-gray-800" : "text-white"} font-black`} />
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <div className="flex gap-1.5 pt-1">
+                          <input
+                            type="text"
+                            placeholder="Nome da cor (Ex: Rosa Chiclete)"
+                            value={newSizeColorName}
+                            onChange={(e) => setNewSizeColorName(e.target.value)}
+                            className="flex-1 px-2 py-0.5 text-[10px] bg-gray-50 border border-gray-200 rounded-md focus:outline-none"
+                          />
+                          <div className="flex items-center gap-1">
+                            <span className="text-[8px] text-gray-400 font-bold uppercase">Ou:</span>
+                            <input
+                              type="color"
+                              value={newSizeColorHex || "#ffffff"}
+                              onChange={(e) => {
+                                setNewSizeColorHex(e.target.value);
+                                if (!newSizeColorName) setNewSizeColorName("Cor Personalizada");
+                              }}
+                              className="w-6 h-5 p-0 border border-gray-200 rounded bg-white cursor-pointer"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
                       <button
                         type="button"
                         onClick={handleAddSizeOption}
-                        className="bg-[#5A5A40] text-white text-[10px] px-2.5 py-1 rounded-lg font-bold hover:bg-[#484833]"
+                        className="w-full bg-[#5A5A40] text-white text-[10px] py-1.5 rounded-lg font-bold hover:bg-[#484833] transition"
                       >
-                        + Add Size
+                        + Adicionar Variação de Tamanho/Cor
                       </button>
                     </div>
                   </div>
@@ -725,22 +828,24 @@ export default function AdminProdutos({ products, categories, onAddProduct, onEd
                   </div>
 
                   {deleteConfirmId === prod.id && (
-                    <div className="flex items-center gap-2 bg-red-50 p-1.5 rounded-lg border border-red-100 animate-pulse justify-between mt-1">
-                      <span className="text-[9px] font-bold text-red-600 uppercase">Excluir produto?</span>
-                      <div className="flex gap-1">
+                    <div className="flex items-center gap-3 bg-red-50 p-2.5 rounded-xl border border-red-200 justify-between mt-2 shadow-xs">
+                      <span className="text-[10px] font-bold text-red-600 uppercase tracking-wide">Excluir produto?</span>
+                      <div className="flex gap-1.5">
                         <button
+                          type="button"
                           onClick={() => {
                             onDeleteProduct(prod.id);
                             setDeleteConfirmId(null);
                             triggerNotification(`Produto ${prod.name} excluído.`);
                           }}
-                          className="bg-red-600 hover:bg-red-700 text-white px-2 py-0.5 rounded text-[9px] font-bold transition"
+                          className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-[11px] font-bold transition active:scale-95 shadow-2xs cursor-pointer min-h-[36px] min-w-[54px] flex items-center justify-center"
                         >
                           Sim
                         </button>
                         <button
+                          type="button"
                           onClick={() => setDeleteConfirmId(null)}
-                          className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-2 py-0.5 rounded text-[9px] font-bold transition"
+                          className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg text-[11px] font-bold transition active:scale-95 cursor-pointer min-h-[36px] min-w-[54px] flex items-center justify-center"
                         >
                           Não
                         </button>

@@ -54,7 +54,7 @@ export default function AdminPedidos({ state, onUpdateStatus, onDeleteOrder }: A
     }
     rawPhone = "+" + rawPhone;
 
-    const itemsText = order.items.map(item => `• ${item.productName} (Tamanho: ${item.selectedSize}) x${item.quantity}`).join("\n");
+    const itemsText = order.items.map(item => `• ${item.productName} (Tamanho: ${item.selectedSize}${item.selectedColor ? `, Cor: ${item.selectedColor}` : ""}) x${item.quantity}`).join("\n");
     const text = `Olá, ${order.clientName}! Aqui é do Mundo Dutra Kids.\n\n` +
       `Confirmamos o recebimento do seu pedido *${order.code}* no total de *R$ ${order.total.toFixed(2)}*!\n\n` +
       `*Itens do Pedido:*\n${itemsText}\n\n` +
@@ -111,7 +111,7 @@ export default function AdminPedidos({ state, onUpdateStatus, onDeleteOrder }: A
           <div class="bold">ITENS:</div>
           ${selectedOrderForPrint?.items.map(item => `
             <div class="row">
-              <span>${item.productName.substring(0, 18)} (${item.selectedSize})</span>
+              <span>${item.productName.substring(0, 18)} (${item.selectedSize}${item.selectedColor ? ` - ${item.selectedColor}` : ""})</span>
               <span>x${item.quantity}</span>
             </div>
             <div class="row" style="font-size: 11px; margin-bottom: 4px;">
@@ -247,7 +247,7 @@ export default function AdminPedidos({ state, onUpdateStatus, onDeleteOrder }: A
                         <div className="space-y-0.5 max-w-xs">
                           {order.items.map((item, i) => (
                             <p key={i} className="text-[11px] text-gray-700 leading-tight">
-                              • <span className="font-bold">{item.productName}</span> ({item.selectedSize}) <span className="text-gray-400">x{item.quantity}</span>
+                              • <span className="font-bold">{item.productName}</span> ({item.selectedSize}{item.selectedColor ? ` - ${item.selectedColor}` : ""}) <span className="text-gray-400">x{item.quantity}</span>
                             </p>
                           ))}
                           {order.observations && (
@@ -398,7 +398,7 @@ export default function AdminPedidos({ state, onUpdateStatus, onDeleteOrder }: A
                 {selectedOrderForPrint.items.map((it, i) => (
                   <div key={i} className="mb-1.5">
                     <div className="flex justify-between">
-                      <span>• {it.productName.substring(0, 15)} ({it.selectedSize})</span>
+                      <span>• {it.productName.substring(0, 15)} ({it.selectedSize}{it.selectedColor ? ` - ${it.selectedColor}` : ""})</span>
                       <span>x{it.quantity}</span>
                     </div>
                     <div className="flex justify-between text-[10px] text-gray-600">

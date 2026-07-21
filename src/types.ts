@@ -1,6 +1,8 @@
 export interface ProductSizeStock {
   size: string;
   stock: number;
+  color?: string;
+  colorHex?: string;
 }
 
 export interface Product {
@@ -31,6 +33,7 @@ export interface OrderItem {
   productName: string;
   productCode: string;
   selectedSize: string;
+  selectedColor?: string;
   quantity: number;
   unitPrice: number;
 }

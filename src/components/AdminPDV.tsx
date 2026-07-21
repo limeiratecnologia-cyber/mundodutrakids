@@ -17,7 +17,7 @@ export default function AdminPDV({ state, onAddOrder }: AdminPDVProps) {
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
 
   // Cart/PDV register state
-  const [pdvCart, setPdvCart] = useState<{ product: Product; size: string; quantity: number }[]>([]);
+  const [pdvCart, setPdvCart] = useState<{ product: Product; size: string; color?: string; colorHex?: string; quantity: number }[]>([]);
 
   // Client info form
   const [clientName, setClientName] = useState("");
@@ -79,16 +79,20 @@ export default function AdminPDV({ state, onAddOrder }: AdminPDVProps) {
   }, [paymentMethod, cashAmountGiven, total]);
 
   // Add Item with Size Selection inside PDV register
-  const handleAddProductToPdv = (prod: Product, size: string) => {
+  const handleAddProductToPdv = (prod: Product, size: string, color?: string, colorHex?: string) => {
     // Check stock for size
-    const sizeStock = prod.sizes.find(s => s.size === size);
+    const sizeStock = prod.sizes.find(s => s.size === size && (s.color || "") === (color || ""));
     const availableStock = sizeStock ? sizeStock.stock : 0;
 
-    const existingIndex = pdvCart.findIndex(item => item.product.id === prod.id && item.size === size);
+    const existingIndex = pdvCart.findIndex(
+      item => item.product.id === prod.id && 
+              item.size === size && 
+              (item.color || "") === (color || "")
+    );
     const currentQty = existingIndex !== -1 ? pdvCart[existingIndex].quantity : 0;
 
     if (currentQty + 1 > availableStock) {
-      alert(`Desculpe! Quantidade excede o estoque disponível para o tamanho ${size}. Estoque atual: ${availableStock}`);
+      alert(`Desculpe! Quantidade excede o estoque disponível para a variação ${size}${color ? ` (${color})` : ""}. Estoque atual: ${availableStock}`);
       return;
     }
 
@@ -97,14 +101,16 @@ export default function AdminPDV({ state, onAddOrder }: AdminPDVProps) {
       updated[existingIndex].quantity += 1;
       setPdvCart(updated);
     } else {
-      setPdvCart([...pdvCart, { product: prod, size, quantity: 1 }]);
+      setPdvCart([...pdvCart, { product: prod, size, color, colorHex, quantity: 1 }]);
     }
   };
 
   const handleUpdatePdvQty = (index: number, delta: number) => {
     const updated = [...pdvCart];
     const item = updated[index];
-    const sizeStock = item.product.sizes.find(s => s.size === item.size);
+    const sizeStock = item.product.sizes.find(
+      s => s.size === item.size && (s.color || "") === (item.color || "")
+    );
     const availableStock = sizeStock ? sizeStock.stock : 0;
 
     const newQty = item.quantity + delta;
@@ -179,6 +185,7 @@ export default function AdminPDV({ state, onAddOrder }: AdminPDVProps) {
       productName: item.product.name,
       productCode: item.product.code,
       selectedSize: item.size,
+      selectedColor: item.color,
       quantity: item.quantity,
       unitPrice: item.product.price
     }));
@@ -311,19 +318,26 @@ export default function AdminPDV({ state, onAddOrder }: AdminPDVProps) {
                     <div className="mt-2">
                       <p className="text-[8px] uppercase tracking-wider font-extrabold text-gray-400 mb-1">Selecione o tamanho para vender:</p>
                       <div className="flex flex-wrap gap-1">
-                        {prod.sizes.map((s) => (
+                        {prod.sizes.map((s, sIdx) => (
                           <button
-                            key={s.size}
+                            key={sIdx}
                             disabled={s.stock <= 0}
-                            onClick={() => handleAddProductToPdv(prod, s.size)}
-                            title={`Estoque disponível: ${s.stock}`}
-                            className={`px-2 py-0.5 text-[9px] rounded font-bold border transition ${
+                            onClick={() => handleAddProductToPdv(prod, s.size, s.color, s.colorHex)}
+                            title={`Estoque disponível: ${s.stock}${s.color ? ` (${s.color})` : ""}`}
+                            className={`px-2 py-0.5 text-[9px] rounded font-bold border transition flex items-center gap-1 ${
                               s.stock <= 0
                                 ? "bg-gray-100 border-gray-100 text-gray-300 cursor-not-allowed line-through"
                                 : "bg-white border-gray-200 hover:border-[#5A5A40] text-gray-700"
                             }`}
                           >
-                            {s.size} ({s.stock})
+                            {s.colorHex && (
+                              <span 
+                                className="w-1.5 h-1.5 rounded-full border border-black/10 shrink-0" 
+                                style={{ backgroundColor: s.colorHex }}
+                              />
+                            )}
+                            <span>{s.size}</span>
+                            <span className="text-[8px] opacity-60 font-mono">({s.stock})</span>
                           </button>
                         ))}
                       </div>
@@ -369,7 +383,7 @@ export default function AdminPDV({ state, onAddOrder }: AdminPDVProps) {
                 <div key={idx} className="bg-gray-50 border border-gray-100 p-2 rounded-xl flex gap-2 items-center justify-between">
                   <div className="min-w-0 flex-1">
                     <p className="text-[11px] font-extrabold text-gray-900 truncate">{item.product.name}</p>
-                    <p className="text-[9px] text-[#5A5A40] font-bold">Tam: {item.size} • R$ {item.product.price.toFixed(2)}</p>
+                    <p className="text-[9px] text-[#5A5A40] font-bold">Tam: {item.size}{item.color ? ` (${item.color})` : ""} • R$ {item.product.price.toFixed(2)}</p>
                   </div>
 
                   <div className="flex items-center gap-1.5">

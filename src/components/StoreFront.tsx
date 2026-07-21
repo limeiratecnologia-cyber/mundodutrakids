@@ -25,7 +25,7 @@ export default function StoreFront({ state, onPlaceOrder, onBackToAdmin }: Store
   const [selectedSizeFilter, setSelectedSizeFilter] = useState<string>("all");
   
   // Cart state
-  const [cart, setCart] = useState<{ product: Product; size: string; quantity: number }[]>([]);
+  const [cart, setCart] = useState<{ product: Product; size: string; color?: string; colorHex?: string; quantity: number }[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [checkoutStep, setCheckoutStep] = useState<"cart" | "details">("cart");
 
@@ -54,10 +54,22 @@ export default function StoreFront({ state, onPlaceOrder, onBackToAdmin }: Store
   const [viewingProduct, setViewingProduct] = useState<Product | null>(null);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [selectedDetailSize, setSelectedDetailSize] = useState<string>("");
+  const [selectedDetailColor, setSelectedDetailColor] = useState<string>("");
+  const [selectedDetailColorHex, setSelectedDetailColorHex] = useState<string>("");
   const [detailQuantity, setDetailQuantity] = useState<number>(1);
 
   useEffect(() => {
     setSelectedImage(null);
+    if (viewingProduct) {
+      const firstAvailable = viewingProduct.sizes.find(s => s.stock > 0);
+      setSelectedDetailSize(firstAvailable?.size || "");
+      setSelectedDetailColor(firstAvailable?.color || "");
+      setSelectedDetailColorHex(firstAvailable?.colorHex || "");
+    } else {
+      setSelectedDetailSize("");
+      setSelectedDetailColor("");
+      setSelectedDetailColorHex("");
+    }
   }, [viewingProduct]);
 
   // Live Shop dedicated states
@@ -106,9 +118,11 @@ export default function StoreFront({ state, onPlaceOrder, onBackToAdmin }: Store
   // Track stock constraints for quantity selects
   const activeDetailProductMaxStock = useMemo(() => {
     if (!viewingProduct || !selectedDetailSize) return 0;
-    const sizeStock = viewingProduct.sizes.find(s => s.size === selectedDetailSize);
+    const sizeStock = viewingProduct.sizes.find(
+      s => s.size === selectedDetailSize && (s.color || "") === selectedDetailColor
+    );
     return sizeStock ? sizeStock.stock : 0;
-  }, [viewingProduct, selectedDetailSize]);
+  }, [viewingProduct, selectedDetailSize, selectedDetailColor]);
 
   // Load active notices (Top bar and Centered Popup separately)
   useEffect(() => {
@@ -282,12 +296,16 @@ export default function StoreFront({ state, onPlaceOrder, onBackToAdmin }: Store
   }, [subtotal, discountAmount, shippingCost]);
 
   // Quick Action: Add to Cart
-  const handleAddToCart = (product: Product, size: string, qty: number) => {
+  const handleAddToCart = (product: Product, size: string, qty: number, color?: string, colorHex?: string) => {
     // Validate stock
-    const sizeStock = product.sizes.find(s => s.size === size);
+    const sizeStock = product.sizes.find(s => s.size === size && (s.color || "") === (color || ""));
     const availableStock = sizeStock ? sizeStock.stock : 0;
     
-    const existingIndex = cart.findIndex(item => item.product.id === product.id && item.size === size);
+    const existingIndex = cart.findIndex(
+      item => item.product.id === product.id && 
+              item.size === size && 
+              (item.color || "") === (color || "")
+    );
     const currentCartQty = existingIndex !== -1 ? cart[existingIndex].quantity : 0;
 
     if (currentCartQty + qty > availableStock) {
@@ -300,12 +318,14 @@ export default function StoreFront({ state, onPlaceOrder, onBackToAdmin }: Store
       updated[existingIndex].quantity += qty;
       setCart(updated);
     } else {
-      setCart([...cart, { product, size, quantity: qty }]);
+      setCart([...cart, { product, size, color, colorHex, quantity: qty }]);
     }
 
     // Reset details
     setViewingProduct(null);
     setSelectedDetailSize("");
+    setSelectedDetailColor("");
+    setSelectedDetailColorHex("");
     setDetailQuantity(1);
     setIsCartOpen(true);
     showToast(`Produto adicionado à sacola com sucesso! 🛍️`, "success");
@@ -314,7 +334,9 @@ export default function StoreFront({ state, onPlaceOrder, onBackToAdmin }: Store
   const handleUpdateCartQty = (index: number, delta: number) => {
     const updated = [...cart];
     const item = updated[index];
-    const sizeStock = item.product.sizes.find(s => s.size === item.size);
+    const sizeStock = item.product.sizes.find(
+      s => s.size === item.size && (s.color || "") === (item.color || "")
+    );
     const availableStock = sizeStock ? sizeStock.stock : 0;
 
     const newQty = item.quantity + delta;
@@ -402,6 +424,7 @@ export default function StoreFront({ state, onPlaceOrder, onBackToAdmin }: Store
       productName: item.product.name,
       productCode: item.product.code,
       selectedSize: item.size,
+      selectedColor: item.color,
       quantity: item.quantity,
       unitPrice: item.product.price
     }));
@@ -439,7 +462,7 @@ export default function StoreFront({ state, onPlaceOrder, onBackToAdmin }: Store
 
     // Build perfect formatted WhatsApp message
     // Support Android & iOS perfectly
-    const itemsText = cart.map(item => `• ${item.product.name} (Tamanho: ${item.size}) x${item.quantity} - R$ ${(item.product.price * item.quantity).toFixed(2)}`).join("\n");
+    const itemsText = cart.map(item => `• ${item.product.name} (Tamanho: ${item.size}${item.color ? `, Cor: ${item.color}` : ""}) x${item.quantity} - R$ ${(item.product.price * item.quantity).toFixed(2)}`).join("\n");
     const checkoutSummary = `*NOVO PEDIDO - MUNDO DUTRA KIDS*\n\n` +
       `👤 *Cliente:* ${clientName}\n` +
       `📞 *WhatsApp:* ${formattedPhone}\n` +
@@ -643,6 +666,17 @@ export default function StoreFront({ state, onPlaceOrder, onBackToAdmin }: Store
                   <span className="bg-[#5A5A40]/10 text-[#5A5A40] text-[10px] font-black px-2 py-0.5 rounded-md">
                     {item.size}
                   </span>
+                  {item.color && (
+                    <div className="flex items-center gap-1 bg-gray-100 px-1.5 py-0.5 rounded-md shrink-0">
+                      {item.colorHex && (
+                        <span 
+                          className="w-2.5 h-2.5 rounded-full border border-black/10 inline-block shadow-3xs" 
+                          style={{ backgroundColor: item.colorHex }}
+                        />
+                      )}
+                      <span className="text-gray-600 text-[9px] font-bold">{item.color}</span>
+                    </div>
+                  )}
                 </div>
                 <p className={`font-black text-gray-950 mt-1.5 ${isMobile ? "text-sm" : "text-xs"}`}>
                   R$ {item.product.price.toFixed(2)}
@@ -1305,15 +1339,21 @@ export default function StoreFront({ state, onPlaceOrder, onBackToAdmin }: Store
                 
                 {/* Quick trust badges */}
                 <div className="flex flex-wrap gap-2.5 pt-1">
-                  <span className="bg-white/90 border border-pink-100 rounded-full px-3 py-1 text-xs text-pink-600 font-bold flex items-center gap-1 shadow-sm">
-                    {landpage.badge1Icon || "🌸"} {landpage.badge1Text || "100% Algodão"}
-                  </span>
-                  <span className="bg-white/90 border border-blue-100 rounded-full px-3 py-1 text-xs text-blue-600 font-bold flex items-center gap-1 shadow-sm">
-                    {landpage.badge2Icon || "☁️"} {landpage.badge2Text || "Toque Macio"}
-                  </span>
-                  <span className="bg-white/90 border border-amber-100 rounded-full px-3 py-1 text-xs text-amber-600 font-bold flex items-center gap-1 shadow-sm">
-                    {landpage.badge3Icon || "🍼"} {landpage.badge3Text || "Hipoalergênico"}
-                  </span>
+                  {landpage.badge1Text !== "" && (
+                    <span className="bg-white/90 border border-pink-100 rounded-full px-3 py-1 text-xs text-pink-600 font-bold flex items-center gap-1 shadow-sm">
+                      {landpage.badge1Icon !== "" ? (landpage.badge1Icon || "🌸") : ""} {landpage.badge1Text || "100% Algodão"}
+                    </span>
+                  )}
+                  {landpage.badge2Text !== "" && (
+                    <span className="bg-white/90 border border-blue-100 rounded-full px-3 py-1 text-xs text-blue-600 font-bold flex items-center gap-1 shadow-sm">
+                      {landpage.badge2Icon !== "" ? (landpage.badge2Icon || "☁️") : ""} {landpage.badge2Text || "Toque Macio"}
+                    </span>
+                  )}
+                  {landpage.badge3Text !== "" && (
+                    <span className="bg-white/90 border border-amber-100 rounded-full px-3 py-1 text-xs text-amber-600 font-bold flex items-center gap-1 shadow-sm">
+                      {landpage.badge3Icon !== "" ? (landpage.badge3Icon || "🍼") : ""} {landpage.badge3Text || "Hipoalergênico"}
+                    </span>
+                  )}
                 </div>
 
                 <div className="pt-2">
@@ -1501,6 +1541,19 @@ export default function StoreFront({ state, onPlaceOrder, onBackToAdmin }: Store
                       <p className="text-xs text-gray-500 mt-0.5 leading-tight line-clamp-2">
                         Idade: {prod.age}
                       </p>
+                      
+                      {/* Available colors indicator */}
+                      {prod.sizes && prod.sizes.some(s => s.colorHex) && (
+                        <div className="flex flex-wrap gap-1 mt-1.5">
+                          {Array.from(new Set(prod.sizes.filter(s => s.colorHex).map(s => s.colorHex))).map((hex, i) => (
+                            <span
+                              key={i}
+                              className="w-2.5 h-2.5 rounded-full border border-black/10 inline-block shrink-0 shadow-2xs"
+                              style={{ backgroundColor: hex }}
+                            />
+                          ))}
+                        </div>
+                      )}
                     </div>
 
                     <div className="mt-3">
@@ -1623,26 +1676,37 @@ export default function StoreFront({ state, onPlaceOrder, onBackToAdmin }: Store
                     Selecione o tamanho disponível:
                   </span>
                   <div className="flex flex-wrap gap-2">
-                    {viewingProduct.sizes.map((sz) => (
-                      <button
-                        key={sz.size}
-                        disabled={sz.stock <= 0}
-                        onClick={() => {
-                          setSelectedDetailSize(sz.size);
-                          setDetailQuantity(1); // reset to 1
-                        }}
-                        className={`px-3.5 py-1.5 text-xs rounded-xl font-semibold transition flex items-center gap-1 ${
-                          selectedDetailSize === sz.size
-                            ? "bg-[#5A5A40] text-white shadow-sm"
-                            : sz.stock <= 0
-                            ? "bg-gray-100 text-gray-300 line-through cursor-not-allowed"
-                            : "bg-white border border-[#e0e0d6] text-gray-700 hover:bg-[#5A5A40]/5"
-                        }`}
-                      >
-                        <span>{sz.size}</span>
-                        <span className="text-[9px] opacity-70">({sz.stock} restam)</span>
-                      </button>
-                    ))}
+                    {viewingProduct.sizes.map((sz, idx) => {
+                      const isSelected = selectedDetailSize === sz.size && selectedDetailColor === (sz.color || "");
+                      return (
+                        <button
+                          key={idx}
+                          disabled={sz.stock <= 0}
+                          onClick={() => {
+                            setSelectedDetailSize(sz.size);
+                            setSelectedDetailColor(sz.color || "");
+                            setSelectedDetailColorHex(sz.colorHex || "");
+                            setDetailQuantity(1); // reset to 1
+                          }}
+                          className={`px-3 py-1.5 text-xs rounded-xl font-semibold transition flex items-center gap-1.5 ${
+                            isSelected
+                              ? "bg-[#5A5A40] text-white shadow-sm"
+                              : sz.stock <= 0
+                              ? "bg-gray-100 text-gray-300 line-through cursor-not-allowed"
+                              : "bg-white border border-[#e0e0d6] text-gray-700 hover:bg-[#5A5A40]/5"
+                          }`}
+                        >
+                          {sz.colorHex && (
+                            <span 
+                              className="w-2.5 h-2.5 rounded-full border border-white/40 inline-block shrink-0 shadow-3xs" 
+                              style={{ backgroundColor: sz.colorHex }}
+                            />
+                          )}
+                          <span>{sz.size} {sz.color ? `(${sz.color})` : ""}</span>
+                          <span className="text-[9px] opacity-70 font-mono">({sz.stock})</span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -1679,7 +1743,7 @@ export default function StoreFront({ state, onPlaceOrder, onBackToAdmin }: Store
                     disabled={!selectedDetailSize || activeDetailProductMaxStock === 0}
                     onClick={() => {
                       if (viewingProduct && selectedDetailSize) {
-                        handleAddToCart(viewingProduct, selectedDetailSize, detailQuantity);
+                        handleAddToCart(viewingProduct, selectedDetailSize, detailQuantity, selectedDetailColor, selectedDetailColorHex);
                       }
                     }}
                     className="flex-1 bg-[#5A5A40] hover:bg-[#484833] text-white font-bold py-2.5 rounded-2xl text-xs transition flex items-center justify-center gap-2 shadow-sm disabled:opacity-45"

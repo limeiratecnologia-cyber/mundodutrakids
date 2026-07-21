@@ -80,7 +80,7 @@ export default function App() {
       newOrder.items.forEach((it) => {
         if (it.productId === p.id) {
           sizes = sizes.map((sz) => {
-            if (sz.size === it.selectedSize) {
+            if (sz.size === it.selectedSize && (sz.color || "") === (it.selectedColor || "")) {
               return { ...sz, stock: Math.max(0, sz.stock - it.quantity) };
             }
             return sz;

@@ -672,6 +672,11 @@ export default function AdminMinhaLoja({ state, onUpdateState }: AdminMinhaLojaP
                     </div>
                   </div>
 
+                  {/* Brand Badges Visual Tip */}
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-[11px] text-amber-900 mt-2">
+                    💡 <strong>Dica de Ocultação de Selos:</strong> Para tirar qualquer um dos selos (Selo 1, Selo 2 ou Selo 3) da vitrine da loja, basta clicar no botão <strong>"Limpar"</strong> correspondente ou apagar totalmente o texto dele e salvar as alterações.
+                  </div>
+
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div className="col-span-1 sm:col-span-3">
                       <label className="block text-[8px] uppercase font-bold text-gray-400 mb-1">Badge de Coleção Superior (Header)</label>
@@ -685,66 +690,132 @@ export default function AdminMinhaLoja({ state, onUpdateState }: AdminMinhaLojaP
                       />
                     </div>
 
-                    <div>
-                      <label className="block text-[8px] uppercase font-bold text-gray-400 mb-1">Selo 1 - Ícone / Emoji</label>
+                    <div className="bg-white p-3 rounded-xl border border-gray-100">
+                      <div className="flex justify-between items-center mb-1">
+                        <label className="block text-[8px] uppercase font-bold text-gray-400">Selo 1 - Ícone</label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            updateLandpageField("badge1Icon", "");
+                            updateLandpageField("badge1Text", "");
+                            setTimeout(() => {
+                              onUpdateState({
+                                landpage: {
+                                  ...landpage,
+                                  badge1Icon: "",
+                                  badge1Text: ""
+                                }
+                              });
+                            }, 50);
+                            triggerNotification("Selo 1 limpo com sucesso! ✨", "success");
+                          }}
+                          className="text-[9px] text-red-500 hover:text-red-700 font-extrabold hover:underline"
+                        >
+                          Limpar Selo 1
+                        </button>
+                      </div>
                       <input
                         type="text"
                         placeholder="🌸"
                         value={landpage.badge1Icon || ""}
                         onChange={(e) => updateLandpageField("badge1Icon", e.target.value, true)}
                         onBlur={handleBlurSave}
-                        className="w-full text-xs px-3 py-1.5 bg-white border border-[#e0e0d6] rounded-xl focus:outline-none text-center font-bold"
+                        className="w-full text-xs px-3 py-1.5 bg-gray-50 border border-[#e0e0d6] rounded-xl focus:outline-none text-center font-bold"
                       />
                       <label className="block text-[8px] uppercase font-bold text-gray-400 mt-1.5 mb-1">Selo 1 - Texto</label>
                       <input
                         type="text"
-                        placeholder="100% Algodão"
+                        placeholder="Ex: 100% Algodão"
                         value={landpage.badge1Text || ""}
                         onChange={(e) => updateLandpageField("badge1Text", e.target.value, true)}
                         onBlur={handleBlurSave}
-                        className="w-full text-xs px-3 py-1.5 bg-white border border-[#e0e0d6] rounded-xl focus:outline-none"
+                        className="w-full text-xs px-3 py-1.5 bg-white border border-[#e0e0d6] rounded-xl focus:outline-none font-medium text-gray-800"
                       />
                     </div>
 
-                    <div>
-                      <label className="block text-[8px] uppercase font-bold text-gray-400 mb-1">Selo 2 - Ícone / Emoji</label>
+                    <div className="bg-white p-3 rounded-xl border border-gray-100">
+                      <div className="flex justify-between items-center mb-1">
+                        <label className="block text-[8px] uppercase font-bold text-gray-400">Selo 2 - Ícone</label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            updateLandpageField("badge2Icon", "");
+                            updateLandpageField("badge2Text", "");
+                            setTimeout(() => {
+                              onUpdateState({
+                                landpage: {
+                                  ...landpage,
+                                  badge2Icon: "",
+                                  badge2Text: ""
+                                }
+                              });
+                            }, 50);
+                            triggerNotification("Selo 2 limpo com sucesso! ✨", "success");
+                          }}
+                          className="text-[9px] text-red-500 hover:text-red-700 font-extrabold hover:underline"
+                        >
+                          Limpar Selo 2
+                        </button>
+                      </div>
                       <input
                         type="text"
                         placeholder="☁️"
                         value={landpage.badge2Icon || ""}
                         onChange={(e) => updateLandpageField("badge2Icon", e.target.value, true)}
                         onBlur={handleBlurSave}
-                        className="w-full text-xs px-3 py-1.5 bg-white border border-[#e0e0d6] rounded-xl focus:outline-none text-center font-bold"
+                        className="w-full text-xs px-3 py-1.5 bg-gray-50 border border-[#e0e0d6] rounded-xl focus:outline-none text-center font-bold"
                       />
                       <label className="block text-[8px] uppercase font-bold text-gray-400 mt-1.5 mb-1">Selo 2 - Texto</label>
                       <input
                         type="text"
-                        placeholder="Toque Macio"
+                        placeholder="Ex: Toque Macio"
                         value={landpage.badge2Text || ""}
                         onChange={(e) => updateLandpageField("badge2Text", e.target.value, true)}
                         onBlur={handleBlurSave}
-                        className="w-full text-xs px-3 py-1.5 bg-white border border-[#e0e0d6] rounded-xl focus:outline-none"
+                        className="w-full text-xs px-3 py-1.5 bg-white border border-[#e0e0d6] rounded-xl focus:outline-none font-medium text-gray-800"
                       />
                     </div>
 
-                    <div>
-                      <label className="block text-[8px] uppercase font-bold text-gray-400 mb-1">Selo 3 - Ícone / Emoji</label>
+                    <div className="bg-white p-3 rounded-xl border border-gray-100">
+                      <div className="flex justify-between items-center mb-1">
+                        <label className="block text-[8px] uppercase font-bold text-gray-400">Selo 3 - Ícone</label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            updateLandpageField("badge3Icon", "");
+                            updateLandpageField("badge3Text", "");
+                            setTimeout(() => {
+                              onUpdateState({
+                                landpage: {
+                                  ...landpage,
+                                  badge3Icon: "",
+                                  badge3Text: ""
+                                }
+                              });
+                            }, 50);
+                            triggerNotification("Selo 3 limpo com sucesso! ✨", "success");
+                          }}
+                          className="text-[9px] text-red-500 hover:text-red-700 font-extrabold hover:underline"
+                        >
+                          Limpar Selo 3
+                        </button>
+                      </div>
                       <input
                         type="text"
                         placeholder="🍼"
                         value={landpage.badge3Icon || ""}
                         onChange={(e) => updateLandpageField("badge3Icon", e.target.value, true)}
                         onBlur={handleBlurSave}
-                        className="w-full text-xs px-3 py-1.5 bg-white border border-[#e0e0d6] rounded-xl focus:outline-none text-center font-bold"
+                        className="w-full text-xs px-3 py-1.5 bg-gray-50 border border-[#e0e0d6] rounded-xl focus:outline-none text-center font-bold"
                       />
                       <label className="block text-[8px] uppercase font-bold text-gray-400 mt-1.5 mb-1">Selo 3 - Texto</label>
                       <input
                         type="text"
-                        placeholder="Hipoalergênico"
+                        placeholder="Ex: Hipoalergênico"
                         value={landpage.badge3Text || ""}
                         onChange={(e) => updateLandpageField("badge3Text", e.target.value, true)}
                         onBlur={handleBlurSave}
-                        className="w-full text-xs px-3 py-1.5 bg-white border border-[#e0e0d6] rounded-xl focus:outline-none"
+                        className="w-full text-xs px-3 py-1.5 bg-white border border-[#e0e0d6] rounded-xl focus:outline-none font-medium text-gray-800"
                       />
                     </div>
                   </div>
