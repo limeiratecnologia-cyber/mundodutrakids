@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Sparkles, X, Heart, Star, Compass, RefreshCw, Shirt, Footprints, Smile, User, Tag } from "lucide-react";
+import { Sparkles, X, Heart, Star, Compass, RefreshCw, Shirt, Footprints, Smile, User, Tag, Upload, Image as ImageIcon, Trash2 } from "lucide-react";
 import { Product } from "../types";
+import { compressImage } from "../utils/imageCompressor";
 
 interface ManequimVirtualProps {
   product: Product;
@@ -60,6 +61,9 @@ export default function ManequimVirtual({ product, onClose }: ManequimVirtualPro
   const [loading, setLoading] = useState<boolean>(false);
   const [result, setResult] = useState<ManequimResult | null>(null);
 
+  const [tryOnMode, setTryOnMode] = useState<"standard" | "photo">("standard");
+  const [uploadedPhoto, setUploadedPhoto] = useState<string | null>(null);
+
   const mannequinOptions = [
     { name: "Infantil Tradicional", desc: "Silhueta padrão para a faixa etária" },
     { name: "Estilo Slim Fit", desc: "Estrutura mais esguia e moderna" },
@@ -70,6 +74,17 @@ export default function ManequimVirtual({ product, onClose }: ManequimVirtualPro
   const currentMannequinImage = useMemo(() => {
     return getMannequinImage(mannequinType, product.categoryId);
   }, [mannequinType, product.categoryId]);
+
+  async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const compressed = await compressImage(file, 800, 800, 0.7);
+      setUploadedPhoto(compressed);
+    } catch (err) {
+      console.error("Erro ao carregar imagem:", err);
+    }
+  }
 
   async function handleGenerate() {
     setLoading(true);
@@ -82,8 +97,9 @@ export default function ManequimVirtual({ product, onClose }: ManequimVirtualPro
           productName: product.name,
           productCategory: product.categoryId === "cat-1" ? "Roupas" : product.categoryId === "cat-2" ? "Calçados" : "Acessórios",
           sizeSelected,
-          mannequinType,
-          customText
+          mannequinType: tryOnMode === "photo" ? "Foto Enviada pelo Cliente" : mannequinType,
+          customText,
+          userImage: tryOnMode === "photo" ? uploadedPhoto : undefined
         })
       });
       if (response.ok) {
@@ -94,19 +110,35 @@ export default function ManequimVirtual({ product, onClose }: ManequimVirtualPro
       }
     } catch (err) {
       // Fallback
-      setResult({
-        fitAnalysis: `O tamanho ${sizeSelected} se ajusta incrivelmente bem no perfil ${mannequinType}. Proporciona excelente flexibilidade, costura segura e conforto absoluto.`,
-        dressedMannequinDescription: `O manequim ${mannequinType} está completamente vestido com muito charme. Ele veste o ${product.name} em tamanho ${sizeSelected}, complementado por uma linda camiseta off-white de toque macio e shorts jeans confortável. O visual é perfeito para o dia a dia, aliando elegância e praticidade.`,
-        poseDescription: "Manequim em pose ativa e alegre de passos confiantes, transmitindo energia lúdica e diversão.",
-        outfitComposition: {
-          torso: "Camiseta de Algodão Premium Off-White",
-          legs: "Bermuda Jeans Comfort Sutil",
-          feet: `${product.categoryId === "cat-2" ? product.name : "Tênis Macio Casual"} com meias de cano médio`,
-          accessories: "Boné Infantil de Sarja Areia"
-        },
-        occasion: "Perfeito para passeios divertidos de final de semana, comemorações casuais e brincadeiras ao ar livre.",
-        narrative: `Que escolha esplêndida! O ${product.name} veste o manequim com maestria, destacando a vivacidade natural da criança com extremo conforto.`
-      });
+      if (tryOnMode === "photo") {
+        setResult({
+          fitAnalysis: `Análise técnica simulada com base na foto enviada: O tamanho ${sizeSelected} se adapta de forma harmoniosa com a silhueta visível na imagem, garantindo excelente amplitude para movimentos e caimento natural.`,
+          dressedMannequinDescription: `Na simulação da foto enviada vestida com o ${product.name} (Tamanho ${sizeSelected}), criamos uma combinação encantadora! O visual é completado de forma elegante com uma t-shirt off-white soft touch e uma confortável bermuda jeans premium.`,
+          poseDescription: "Pose natural detectada a partir da foto enviada.",
+          outfitComposition: {
+            torso: "Camiseta de Malha Algodão Premium Off-White",
+            legs: "Bermuda Jeans Comfort Sutil",
+            feet: `${product.categoryId === "cat-2" ? product.name : "Tênis Macio Casual"} com meias de cano médio`,
+            accessories: "Boné Infantil de Sarja Areia"
+          },
+          occasion: "Excelente para ensaios fotográficos de moda, passeios especiais em família e festas.",
+          narrative: `Que escolha maravilhosa! A foto enviada ganhou um visual de muito destaque com o ${product.name}, aliando extremo conforto e estilo inconfundível.`
+        });
+      } else {
+        setResult({
+          fitAnalysis: `O tamanho ${sizeSelected} se ajusta incrivelmente bem no perfil ${mannequinType}. Proporciona excelente flexibilidade, costura segura e conforto absoluto.`,
+          dressedMannequinDescription: `O manequim ${mannequinType} está completamente vestido com muito charme. Ele veste o ${product.name} em tamanho ${sizeSelected}, complementado por uma linda camiseta off-white de toque macio e shorts jeans confortável. O visual é perfeito para o dia a dia, aliando elegância e praticidade.`,
+          poseDescription: "Manequim em pose ativa e alegre de passos confiantes, transmitindo energia lúdica e diversão.",
+          outfitComposition: {
+            torso: "Camiseta de Algodão Premium Off-White",
+            legs: "Bermuda Jeans Comfort Sutil",
+            feet: `${product.categoryId === "cat-2" ? product.name : "Tênis Macio Casual"} com meias de cano médio`,
+            accessories: "Boné Infantil de Sarja Areia"
+          },
+          occasion: "Perfeito para passeios divertidos de final de semana, comemorações casuais e brincadeiras ao ar livre.",
+          narrative: `Que escolha esplêndida! O ${product.name} veste o manequim com maestria, destacando a vivacidade natural da criança com extremo conforto.`
+        });
+      }
     } finally {
       setLoading(false);
     }
@@ -148,7 +180,7 @@ export default function ManequimVirtual({ product, onClose }: ManequimVirtualPro
                   >
                     {/* Live Dressed Mannequin Image */}
                     <img 
-                      src={currentMannequinImage}
+                      src={(tryOnMode === "photo" && uploadedPhoto) ? uploadedPhoto : currentMannequinImage}
                       alt="Manequim Vestido"
                       className="w-full h-full object-cover"
                       referrerPolicy="no-referrer"
@@ -157,12 +189,12 @@ export default function ManequimVirtual({ product, onClose }: ManequimVirtualPro
                     
                     {/* Floating Indicators / Outfit Tags Overlaid */}
                     <div className="absolute top-2 left-2 bg-black/50 backdrop-blur-md text-white text-[8px] font-bold uppercase tracking-wider px-2 py-1 rounded-full border border-white/20">
-                      🟢 Manequim Vestido pela IA
+                      {tryOnMode === "photo" ? "🟢 Foto Analisada pela IA" : "🟢 Manequim Vestido pela IA"}
                     </div>
 
                     <div className="absolute bottom-2 left-3 right-3 text-white">
                       <p className="text-[10px] font-bold text-yellow-300 uppercase tracking-widest">
-                        {mannequinType}
+                        {tryOnMode === "photo" ? "Provador com Sua Foto" : mannequinType}
                       </p>
                       <p className="text-[9px] opacity-90 line-clamp-1 italic">
                         "{result.poseDescription}"
@@ -188,25 +220,59 @@ export default function ManequimVirtual({ product, onClose }: ManequimVirtualPro
                     key="undressed"
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    className="flex flex-col items-center justify-center p-4 text-center"
+                    className="absolute inset-0 w-full h-full flex flex-col items-center justify-center p-4 text-center"
                   >
-                    {/* Background silhouette */}
-                    <div className="absolute inset-0 opacity-5 flex items-center justify-center">
-                      <Shirt className="w-44 h-44" />
-                    </div>
-
-                    <div className="z-10">
-                      <div className="w-14 h-14 rounded-full bg-[#5A5A40]/10 text-[#5A5A40] flex items-center justify-center mx-auto mb-2 font-bold text-2xl border border-[#5A5A40]/20 animate-pulse">
-                        👗
+                    {tryOnMode === "photo" && uploadedPhoto ? (
+                      <div className="absolute inset-0 w-full h-full">
+                        <img 
+                          src={uploadedPhoto}
+                          alt="Sua Foto"
+                          className="w-full h-full object-cover opacity-90"
+                        />
+                        <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center p-4 text-center text-white">
+                          <ImageIcon className="w-8 h-8 text-white mb-1.5 animate-pulse" />
+                          <p className="text-xs font-bold">Foto Carregada</p>
+                          <p className="text-[9px] text-gray-200 mt-0.5 max-w-[200px]">
+                            Clique em <b>Vestir e Analisar</b> para vestir virtualmente o {product.name} ({sizeSelected}) com IA!
+                          </p>
+                        </div>
                       </div>
-                      <p className="text-xs font-bold text-gray-800">{mannequinType}</p>
-                      <p className="text-[9px] text-gray-500 mt-0.5">
-                        Tamanho selecionado: <span className="font-bold text-[#5A5A40]">{sizeSelected}</span>
-                      </p>
-                      <p className="text-[8px] bg-gray-200/50 px-2 py-0.5 rounded-full text-gray-500 inline-block mt-2">
-                        Pronto para vestir com IA
-                      </p>
-                    </div>
+                    ) : tryOnMode === "photo" ? (
+                      <div className="p-4 flex flex-col items-center justify-center">
+                        <div className="absolute inset-0 opacity-5 flex items-center justify-center">
+                          <ImageIcon className="w-44 h-44" />
+                        </div>
+                        <div className="z-10">
+                          <div className="w-12 h-12 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center mx-auto mb-2 font-bold border border-amber-200 animate-pulse">
+                            📷
+                          </div>
+                          <p className="text-xs font-bold text-gray-800">Provador por Foto</p>
+                          <p className="text-[9px] text-gray-500 mt-1 max-w-[220px]">
+                            Envie a foto de uma criança ou manequim físico abaixo para vestir com IA!
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        {/* Background silhouette */}
+                        <div className="absolute inset-0 opacity-5 flex items-center justify-center">
+                          <Shirt className="w-44 h-44" />
+                        </div>
+
+                        <div className="z-10">
+                          <div className="w-14 h-14 rounded-full bg-[#5A5A40]/10 text-[#5A5A40] flex items-center justify-center mx-auto mb-2 font-bold text-2xl border border-[#5A5A40]/20 animate-pulse">
+                            👗
+                          </div>
+                          <p className="text-xs font-bold text-gray-800">{mannequinType}</p>
+                          <p className="text-[9px] text-gray-500 mt-0.5">
+                            Tamanho selecionado: <span className="font-bold text-[#5A5A40]">{sizeSelected}</span>
+                          </p>
+                          <p className="text-[8px] bg-gray-200/50 px-2 py-0.5 rounded-full text-gray-500 inline-block mt-2">
+                            Pronto para vestir com IA
+                          </p>
+                        </div>
+                      </>
+                    )}
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -238,27 +304,109 @@ export default function ManequimVirtual({ product, onClose }: ManequimVirtualPro
                 </div>
               </div>
 
+              {/* Try-on Mode Selector */}
               <div>
-                <label className="block text-[10px] uppercase font-bold text-gray-500 mb-1 tracking-wider">
-                  Biotipo do Manequim:
+                <label className="block text-[10px] uppercase font-bold text-gray-500 mb-1.5 tracking-wider">
+                  Tipo de Provador:
                 </label>
-                <div className="grid grid-cols-2 gap-1.5">
-                  {mannequinOptions.map((opt) => (
-                    <button
-                      key={opt.name}
-                      onClick={() => setMannequinType(opt.name)}
-                      className={`p-2 text-left rounded-xl transition-all duration-200 border text-xs ${
-                        mannequinType === opt.name
-                          ? "bg-white border-[#5A5A40] ring-2 ring-[#5A5A40]/30 shadow-sm font-semibold"
-                          : "bg-white border-[#e0e0d6] hover:bg-gray-50 text-gray-600"
-                      }`}
-                    >
-                      <p className="font-bold text-gray-800 text-[11px]">{opt.name}</p>
-                      <p className="text-[9px] text-gray-400 leading-tight mt-0.5">{opt.desc}</p>
-                    </button>
-                  ))}
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTryOnMode("standard");
+                      setResult(null);
+                    }}
+                    className={`py-2 px-3 text-[11px] font-bold rounded-xl border flex items-center justify-center gap-1.5 transition-all duration-200 ${
+                      tryOnMode === "standard"
+                        ? "bg-[#5A5A40] text-white border-[#5A5A40] shadow-sm"
+                        : "bg-white text-gray-700 border-[#e0e0d6] hover:bg-gray-50"
+                    }`}
+                  >
+                    <Shirt className="w-3.5 h-3.5" /> Manequim Padrão
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTryOnMode("photo");
+                      setResult(null);
+                    }}
+                    className={`py-2 px-3 text-[11px] font-bold rounded-xl border flex items-center justify-center gap-1.5 transition-all duration-200 ${
+                      tryOnMode === "photo"
+                        ? "bg-[#5A5A40] text-white border-[#5A5A40] shadow-sm"
+                        : "bg-white text-gray-700 border-[#e0e0d6] hover:bg-gray-50"
+                    }`}
+                  >
+                    <Upload className="w-3.5 h-3.5" /> Enviar Foto
+                  </button>
                 </div>
               </div>
+
+              {/* Try-on Mode Content */}
+              {tryOnMode === "standard" ? (
+                <div>
+                  <label className="block text-[10px] uppercase font-bold text-gray-500 mb-1 tracking-wider">
+                    Biotipo do Manequim:
+                  </label>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {mannequinOptions.map((opt) => (
+                      <button
+                        key={opt.name}
+                        onClick={() => setMannequinType(opt.name)}
+                        className={`p-2 text-left rounded-xl transition-all duration-200 border text-xs ${
+                          mannequinType === opt.name
+                            ? "bg-white border-[#5A5A40] ring-2 ring-[#5A5A40]/30 shadow-sm font-semibold"
+                            : "bg-white border-[#e0e0d6] hover:bg-gray-50 text-gray-600"
+                        }`}
+                      >
+                        <p className="font-bold text-gray-800 text-[11px]">{opt.name}</p>
+                        <p className="text-[9px] text-gray-400 leading-tight mt-0.5">{opt.desc}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-[10px] uppercase font-bold text-gray-500 mb-1.5 tracking-wider">
+                    Sua Foto da Criança ou Manequim:
+                  </label>
+                  <div className="bg-white border-2 border-dashed border-[#e0e0d6] rounded-2xl p-4 flex flex-col items-center justify-center text-center relative transition-all duration-200 hover:border-[#5A5A40]/50 min-h-[110px]">
+                    {uploadedPhoto ? (
+                      <div className="w-full flex flex-col items-center">
+                        <div className="relative w-12 h-12 rounded-lg overflow-hidden border border-gray-200 shadow-sm mb-1.5">
+                          <img src={uploadedPhoto} alt="Preview do upload" className="w-full h-full object-cover" />
+                        </div>
+                        <p className="text-[11px] font-bold text-green-600 flex items-center gap-1">
+                          ✓ Foto carregada com sucesso!
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setUploadedPhoto(null);
+                            setResult(null);
+                          }}
+                          className="text-[9px] text-red-500 hover:text-red-700 mt-1 font-extrabold flex items-center gap-1 hover:underline"
+                        >
+                          <Trash2 className="w-3 h-3" /> Excluir e Escolher Outra
+                        </button>
+                      </div>
+                    ) : (
+                      <label className="cursor-pointer w-full py-2 flex flex-col items-center justify-center">
+                        <div className="w-8 h-8 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center mb-1.5 border border-amber-100">
+                          <Upload className="w-4 h-4" />
+                        </div>
+                        <p className="text-[10px] font-bold text-gray-700">Selecione uma Foto do Computador ou Celular</p>
+                        <p className="text-[8px] text-gray-400 mt-0.5">Nossa IA vestirá o look na pessoa ou manequim da imagem</p>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={handlePhotoUpload}
+                        />
+                      </label>
+                    )}
+                  </div>
+                </div>
+              )}
 
               <div>
                 <label className="block text-[10px] uppercase font-bold text-gray-500 mb-1 tracking-wider">

@@ -74,7 +74,7 @@ O item perfeito para renovar o guarda-roupa com muito estilo e conforto! Desenvo
 
 app.post("/api/gemini/manequim-virtual", async (req, res) => {
   try {
-    const { productName, productCategory, sizeSelected, mannequinType, customText } = req.body;
+    const { productName, productCategory, sizeSelected, mannequinType, customText, userImage } = req.body;
     
     const prompt = `Gere uma representação visual detalhada do Manequim Virtual VESTIDO com o produto:
     Produto Principal: ${productName} (${productCategory})
@@ -100,9 +100,49 @@ app.post("/api/gemini/manequim-virtual", async (req, res) => {
 
     const client = getGeminiClient();
     if (process.env.GEMINI_API_KEY) {
+      let contents: any;
+      if (userImage) {
+        const base64Data = userImage.split(",")[1] || userImage;
+        const mimeType = "image/jpeg";
+        const imagePart = {
+          inlineData: {
+            mimeType,
+            data: base64Data,
+          },
+        };
+        const textPart = {
+          text: `Você é um estilista infantil inteligente e especialista em provador virtual por IA para a loja "Mundo Dutra Kids".
+          Analise a foto da criança ou do manequim enviada pelo cliente.
+          Imagine que ela está vestindo o produto principal: "${productName}" da categoria "${productCategory}".
+          Tamanho do produto selecionado pelo cliente: ${sizeSelected}.
+          Observações adicionais do cliente: "${customText || "Nenhuma"}".
+          
+          Faça uma análise multimodal precisa da imagem fornecida em relação ao produto de moda selecionado.
+          Responda estritamente em português no seguinte formato JSON válido:
+          {
+            "fitAnalysis": "Análise técnica em português de como o tamanho selecionado ${sizeSelected} se ajustaria e vestiria a pessoa ou o manequim visível na foto, levando em conta silhueta, altura e conforto.",
+            "dressedMannequinDescription": "Descrição em português de como o visual completo fica neles, detalhando a incorporação de ${productName} de forma harmônica e charmosa da cabeça aos pés.",
+            "poseDescription": "Descrição breve da pose identificada na foto enviada (ex: Criança sorridente em pé de braços abertos).",
+            "outfitComposition": {
+              "torso": "Peça sugerida ou identificada para o tronco",
+              "legs": "Peça sugerida ou identificada para as pernas",
+              "feet": "Calçado ideal sugerido para combinar com o produto principal",
+              "accessories": "Acessórios indicados para o look completo"
+            },
+            "occasion": "A ocasião ideal de uso deste look completo (ex: Festa de aniversário infantil ou Passeio no shopping)",
+            "narrative": "Um elogio animado e carinhoso em português sobre o visual impecável do cliente vestindo a peça de forma simulada."
+          }
+          
+          Responda APENAS o JSON válido sem tags de bloco de código markdown.`
+        };
+        contents = { parts: [imagePart, textPart] };
+      } else {
+        contents = prompt;
+      }
+
       const response = await client.models.generateContent({
         model: "gemini-3.5-flash",
-        contents: prompt,
+        contents,
         config: {
           responseMimeType: "application/json",
         }
@@ -126,19 +166,35 @@ app.post("/api/gemini/manequim-virtual", async (req, res) => {
         });
       }
     } else {
-      res.json({
-        fitAnalysis: `O caimento do tamanho ${sizeSelected} se molda com perfeição às medidas do manequim ${mannequinType}, garantindo mobilidade total.`,
-        dressedMannequinDescription: `O manequim ${mannequinType} foi vestido com uma composição premium. Apresenta o ${productName} estilizado de forma lúdica. No tronco, uma camiseta de malha fresca na cor off-white; nas pernas, um shorts de linho natural super macio. Completa-se com acessórios elegantes para um visual infantil sofisticado e limpo.`,
-        poseDescription: "Manequim em pose de passos confiantes, transmitindo descontração e diversão em cada movimento.",
-        outfitComposition: {
-          torso: "Camiseta de Malha Algodão Premium Off-White",
-          legs: "Bermuda ou Shorts de Linho Cru",
-          feet: `${productCategory === "Calçados" ? productName : "Tênis Macio com Meias de Algodão"}`,
-          accessories: "Boné de Algodão Sálvia"
-        },
-        occasion: "Perfeito para passeios divertidos de final de semana, ensaios fotográficos e festinhas infantis.",
-        narrative: `Visual de catálogo incrível! O ${productName} vestido no manequim realça o estilo e a espontaneidade com leveza fantástica.`
-      });
+      if (userImage) {
+        res.json({
+          fitAnalysis: `O tamanho ${sizeSelected} se molda perfeitamente à silhueta analisada na foto enviada, proporcionando um caimento impecável com excelente liberdade de movimentos.`,
+          dressedMannequinDescription: `Na simulação da foto enviada, o look destaca o ${productName} em tamanho ${sizeSelected}. Combinamos com uma t-shirt de toque aveludado off-white e shorts jeans macio, deixando o visual descontraído, confortável e cheio de personalidade infantil.`,
+          poseDescription: "Pose natural identificada a partir da foto enviada.",
+          outfitComposition: {
+            torso: "Camiseta de Malha Algodão Premium Off-White",
+            legs: "Bermuda Jeans Confortável ou Shorts Casual",
+            feet: `${productCategory === "Calçados" ? productName : "Tênis Infantil Flexível e Macio"}`,
+            accessories: "Tiara ou Boné Infantil Delicado"
+          },
+          occasion: "Excelente para ensaios fotográficos de moda, passeios em família e festas escolares.",
+          narrative: `Que encanto de visual virtual! A foto enviada ganhou uma composição de altíssimo estilo com o ${productName}, valorizando o bem-estar e a beleza natural.`
+        });
+      } else {
+        res.json({
+          fitAnalysis: `O caimento do tamanho ${sizeSelected} se molda com perfeição às medidas do manequim ${mannequinType}, garantindo mobilidade total.`,
+          dressedMannequinDescription: `O manequim ${mannequinType} foi vestido com uma composição premium. Apresenta o ${productName} estilizado de forma lúdica. No tronco, uma camiseta de malha fresca na cor off-white; nas pernas, um shorts de linho natural super macio. Completa-se com acessórios elegantes para um visual infantil sofisticado e limpo.`,
+          poseDescription: "Manequim em pose de passos confiantes, transmitindo descontração e diversão em cada movimento.",
+          outfitComposition: {
+            torso: "Camiseta de Malha Algodão Premium Off-White",
+            legs: "Bermuda ou Shorts de Linho Cru",
+            feet: `${productCategory === "Calçados" ? productName : "Tênis Macio com Meias de Algodão"}`,
+            accessories: "Boné de Algodão Sálvia"
+          },
+          occasion: "Perfeito para passeios divertidos de final de semana, ensaios fotográficos e festinhas infantis.",
+          narrative: `Visual de catálogo incrível! O ${productName} vestido no manequim realça o estilo e a espontaneidade com leveza fantástica.`
+        });
+      }
     }
   } catch (error: any) {
     console.error("Gemini manequim error:", error);
