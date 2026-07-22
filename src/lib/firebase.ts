@@ -95,28 +95,80 @@ function cleanUndefined(obj: any): any {
   return obj;
 }
 
+async function shrinkBase64IfNeeded(val: string): Promise<string> {
+  if (typeof val === "string" && val.startsWith("data:image/") && val.length > 50000) {
+    return new Promise((resolve) => {
+      if (typeof window === "undefined") {
+        resolve(val);
+        return;
+      }
+      const img = new Image();
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+        const maxDim = 400;
+        if (width > maxDim || height > maxDim) {
+          const ratio = Math.min(maxDim / width, maxDim / height);
+          width = Math.round(width * ratio);
+          height = Math.round(height * ratio);
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.fillStyle = "#FFFFFF";
+          ctx.fillRect(0, 0, width, height);
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL("image/jpeg", 0.5));
+          return;
+        }
+        resolve(val);
+      };
+      img.onerror = () => resolve(val);
+      img.src = val;
+    });
+  }
+  return val;
+}
+
 /**
  * Saves the entire SystemState to Firebase Firestore
  */
 export async function saveStateToFirebase(state: any) {
   try {
-    const docRef = doc(db, STATE_DOC_PATH);
     let cleanedState = cleanUndefined(state);
 
-    // Safety check: Ensure payload size does not exceed Firestore's 1MB limit (1,048,576 bytes)
-    const jsonString = JSON.stringify(cleanedState);
-    if (jsonString.length > 850000) {
-      console.warn("Payload size approaching Firestore 1MB limit. Optimizing product images...");
-      if (cleanedState.products && Array.isArray(cleanedState.products)) {
-        cleanedState.products = cleanedState.products.map((p: any) => {
-          if (p.images && p.images.length > 3) {
-            return { ...p, images: p.images.slice(0, 3) };
+    // Compress any large base64 images inside products to keep payload ultra light (~100-200KB)
+    if (cleanedState.products && Array.isArray(cleanedState.products)) {
+      cleanedState.products = await Promise.all(
+        cleanedState.products.map(async (p: any) => {
+          let mainImg = p.image || "";
+          let imgs = Array.isArray(p.images) ? p.images : [];
+
+          if (typeof mainImg === "string" && mainImg.startsWith("data:image/") && mainImg.length > 50000) {
+            mainImg = await shrinkBase64IfNeeded(mainImg);
           }
-          return p;
-        });
-      }
+
+          const processedImgs = await Promise.all(
+            imgs.map(async (img: any) => {
+              if (typeof img === "string" && img.startsWith("data:image/") && img.length > 50000) {
+                return await shrinkBase64IfNeeded(img);
+              }
+              return img;
+            })
+          );
+
+          return {
+            ...p,
+            image: mainImg,
+            images: processedImgs
+          };
+        })
+      );
     }
 
+    const docRef = doc(db, STATE_DOC_PATH);
     await setDoc(docRef, cleanedState);
   } catch (error) {
     console.error("Firestore Save Error:", error);
@@ -155,7 +207,8 @@ export function listenToFirebaseState(onUpdate: (state: any) => void) {
   return onSnapshot(
     docRef,
     (docSnap) => {
-      if (docSnap.exists()) {
+      // Ignore pending local write snapshots to prevent flicker or temporary rollbacks
+      if (docSnap.exists() && !docSnap.metadata.hasPendingWrites) {
         onUpdate(docSnap.data());
       }
     },

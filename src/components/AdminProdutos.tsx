@@ -93,7 +93,7 @@ export default function AdminProdutos({ products, categories, onAddProduct, onEd
     const file = e.target.files?.[0];
     if (file) {
       try {
-        const compressedB64 = await compressImage(file, 500, 500, 0.6);
+        const compressedB64 = await compressImage(file, 400, 400, 0.55);
         setImage(compressedB64);
         if (!images.includes(compressedB64)) {
           setImages(prev => [...prev, compressedB64].slice(0, 4));
@@ -116,7 +116,7 @@ export default function AdminProdutos({ products, categories, onAddProduct, onEd
       
       for (const file of fileList) {
         try {
-          const compressedB64 = await compressImage(file as File, 500, 500, 0.6);
+          const compressedB64 = await compressImage(file as File, 400, 400, 0.55);
           loadedImages.push(compressedB64);
         } catch (err) {
           console.error("Error compressing image in batch:", err);
