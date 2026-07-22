@@ -34,7 +34,12 @@ export default function AdminPDV({ state, onAddOrder }: AdminPDVProps) {
   const filteredProducts = useMemo(() => {
     return products.filter(p => {
       if (p.status !== "ativo") return false;
-      if (selectedCategory !== "all" && p.categoryId !== selectedCategory) return false;
+      if (selectedCategory !== "all") {
+        const isMatch = p.categoryId === selectedCategory || 
+                        categories.find(c => c.id === selectedCategory)?.name === p.categoryId ||
+                        categories.find(c => c.name === selectedCategory)?.id === p.categoryId;
+        if (!isMatch) return false;
+      }
 
       if (searchQuery.trim() !== "") {
         const query = searchQuery.toLowerCase();

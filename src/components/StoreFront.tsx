@@ -245,7 +245,12 @@ export default function StoreFront({ state, onPlaceOrder, onBackToAdmin }: Store
       if (p.status !== "ativo") return false;
 
       // Category matching
-      if (selectedCategory !== "all" && p.categoryId !== selectedCategory) return false;
+      if (selectedCategory !== "all") {
+        const isMatch = p.categoryId === selectedCategory || 
+                        categories.find(c => c.id === selectedCategory)?.name === p.categoryId ||
+                        categories.find(c => c.name === selectedCategory)?.id === p.categoryId;
+        if (!isMatch) return false;
+      }
 
       // Size matching
       if (selectedSizeFilter !== "all" && !p.sizes.some(s => s.size === selectedSizeFilter && s.stock > 0)) return false;
@@ -1524,7 +1529,7 @@ export default function StoreFront({ state, onPlaceOrder, onBackToAdmin }: Store
                   <div className="p-3.5 flex-1 flex flex-col justify-between">
                     <div>
                       <p className="text-[10px] uppercase font-bold text-gray-400 mb-0.5">
-                        {categories.find(c => c.id === prod.categoryId)?.name || "Geral"}
+                        {categories.find(c => c.id === prod.categoryId || c.name === prod.categoryId)?.name || "Geral"}
                       </p>
                       <h4
                         onClick={() => {

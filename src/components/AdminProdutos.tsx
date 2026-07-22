@@ -243,7 +243,11 @@ export default function AdminProdutos({ products, categories, onAddProduct, onEd
     setCost(prod.cost);
     setImage(prod.image);
     setImages(prod.images && prod.images.length > 0 ? prod.images : [prod.image]);
-    setCategoryId(prod.categoryId);
+    
+    // Resolve matching category ID by either ID or Name
+    const matchedCategory = categories.find(c => c.id === prod.categoryId || c.name === prod.categoryId);
+    setCategoryId(matchedCategory ? matchedCategory.id : (prod.categoryId || categories[0]?.id || ""));
+    
     setAge(prod.age);
     setDescription(prod.description);
     setStatus(prod.status);
@@ -293,6 +297,11 @@ export default function AdminProdutos({ products, categories, onAddProduct, onEd
     e.preventDefault();
     if (!name.trim()) {
       triggerNotification("Por favor, digite o nome do produto.", "error");
+      return;
+    }
+
+    if (!categoryId) {
+      triggerNotification("Por favor, selecione uma categoria válida para o produto.", "error");
       return;
     }
 
@@ -433,9 +442,9 @@ export default function AdminProdutos({ products, categories, onAddProduct, onEd
                         value={categoryId}
                         required
                         onChange={(e) => setCategoryId(e.target.value)}
-                        className="w-full px-3 py-2 text-xs bg-gray-50 border border-[#e0e0d6] rounded-xl focus:outline-none"
+                        className="w-full px-3 py-2.5 text-xs bg-gray-50 border border-[#e0e0d6] rounded-xl focus:outline-none focus:border-[#5A5A40] text-gray-800 font-semibold cursor-pointer"
                       >
-                        <option value="">Selecione...</option>
+                        <option value="">-- Selecione uma Categoria --</option>
                         {categories.map(c => (
                           <option key={c.id} value={c.id}>{c.name}</option>
                         ))}
@@ -782,8 +791,8 @@ export default function AdminProdutos({ products, categories, onAddProduct, onEd
                   <h4 className={`font-extrabold text-sm text-gray-900 ${isInactive ? "line-through text-red-700" : ""}`}>
                     {prod.name}
                   </h4>
-                  <p className="text-[10px] text-gray-400 mt-0.5">
-                    Categoria: {categories.find(c => c.id === prod.categoryId)?.name || "Geral"}
+                  <p className="text-[10px] text-gray-500 font-medium mt-0.5">
+                    Categoria: <span className="font-bold text-[#5A5A40]">{categories.find(c => c.id === prod.categoryId || c.name === prod.categoryId)?.name || "Geral"}</span>
                   </p>
                 </div>
 
