@@ -177,12 +177,19 @@ export default function AdminFinanceiro({ transactions, onAddTransaction, onTogg
           <div>
             <label className="block text-[10px] uppercase font-bold text-gray-400 mb-0.5">Valor (R$) *</label>
             <input
-              type="number"
-              step="0.01"
+              type="text"
+              inputMode="decimal"
+              placeholder="0,00"
               required
-              value={amount}
-              onChange={(e) => setAmount(parseFloat(e.target.value) || 0)}
-              className="w-full px-2.5 py-1.5 text-xs bg-gray-50 border border-[#e0e0d6] rounded-xl"
+              value={amount === 0 ? "" : amount}
+              onFocus={(e) => e.target.select()}
+              onChange={(e) => {
+                const val = e.target.value.replace(",", ".");
+                if (val === "" || /^\d*\.?\d*$/.test(val)) {
+                  setAmount(val === "" ? 0 : parseFloat(val));
+                }
+              }}
+              className="w-full px-2.5 py-1.5 text-xs bg-gray-50 border border-[#e0e0d6] rounded-xl font-mono font-bold text-gray-800"
             />
           </div>
 

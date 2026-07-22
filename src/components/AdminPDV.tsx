@@ -520,11 +520,12 @@ export default function AdminPDV({ state, onAddOrder }: AdminPDVProps) {
                   <div className="relative">
                     <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-green-600">R$</span>
                     <input
-                      type="number"
-                      step="0.01"
+                      type="text"
+                      inputMode="decimal"
                       placeholder={total.toFixed(2)}
                       value={cashAmountGiven}
-                      onChange={(e) => setCashAmountGiven(e.target.value)}
+                      onFocus={(e) => e.target.select()}
+                      onChange={(e) => setCashAmountGiven(e.target.value.replace(",", "."))}
                       className="w-full pl-8 pr-2.5 py-1.5 text-xs bg-white border border-green-200 rounded-xl focus:outline-none text-green-900 font-bold font-mono"
                     />
                   </div>

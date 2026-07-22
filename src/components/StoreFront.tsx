@@ -1486,16 +1486,17 @@ export default function StoreFront({ state, onPlaceOrder, onBackToAdmin }: Store
               const totalStock = prod.sizes.reduce((sum, s) => sum + s.stock, 0);
 
               return (
-                <motion.div
-                  layout
+                <div
                   key={prod.id}
-                  className="bg-white rounded-2xl border border-[#e0e0d6] overflow-hidden shadow-sm hover:shadow-md transition flex flex-col justify-between"
+                  className="bg-white rounded-2xl border border-[#e0e0d6] overflow-hidden shadow-xs hover:shadow-md transition flex flex-col justify-between"
                 >
                   {/* Image container */}
                   <div className="aspect-[4/5] bg-[#f9f9f5] p-2 flex items-center justify-center relative overflow-hidden group">
                     <img
                       src={prod.image}
                       alt={prod.name}
+                      loading="lazy"
+                      decoding="async"
                       onClick={() => {
                         setViewingProduct(prod);
                         const firstAvailableSize = prod.sizes.find(s => s.stock > 0)?.size || "";
@@ -1581,7 +1582,7 @@ export default function StoreFront({ state, onPlaceOrder, onBackToAdmin }: Store
                       </div>
                     </div>
                   </div>
-                </motion.div>
+                </div>
               );
             })}
           </div>

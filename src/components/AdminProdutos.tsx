@@ -32,7 +32,9 @@ export default function AdminProdutos({ products, categories, onAddProduct, onEd
   // Form Fields
   const [name, setName] = useState("");
   const [price, setPrice] = useState<number>(0);
+  const [priceInput, setPriceInput] = useState<string>("");
   const [cost, setCost] = useState<number>(0);
+  const [costInput, setCostInput] = useState<string>("");
   const [image, setImage] = useState("");
   const [images, setImages] = useState<string[]>([]);
   const [categoryId, setCategoryId] = useState("");
@@ -218,7 +220,9 @@ export default function AdminProdutos({ products, categories, onAddProduct, onEd
     setEditingProduct(null);
     setName("");
     setPrice(0);
+    setPriceInput("");
     setCost(0);
+    setCostInput("");
     setImage("https://images.unsplash.com/photo-1519457431-44ccd64a579b?q=80&w=400");
     setImages(["https://images.unsplash.com/photo-1519457431-44ccd64a579b?q=80&w=400"]);
     setCategoryId(categories[0]?.id || "");
@@ -240,7 +244,9 @@ export default function AdminProdutos({ products, categories, onAddProduct, onEd
     setEditingProduct(prod);
     setName(prod.name);
     setPrice(prod.price);
+    setPriceInput(prod.price > 0 ? prod.price.toString() : "");
     setCost(prod.cost);
+    setCostInput(prod.cost > 0 ? prod.cost.toString() : "");
     setImage(prod.image);
     setImages(prod.images && prod.images.length > 0 ? prod.images : [prod.image]);
     
@@ -414,24 +420,48 @@ export default function AdminProdutos({ products, categories, onAddProduct, onEd
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-[10px] uppercase font-bold text-gray-500 mb-1">Preço de Venda (R$) *</label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        required
-                        value={price}
-                        onChange={(e) => setPrice(parseFloat(e.target.value) || 0)}
-                        className="w-full px-3 py-2 text-xs bg-gray-50 border border-[#e0e0d6] rounded-xl focus:outline-none"
-                      />
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400">R$</span>
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          required
+                          placeholder="0,00"
+                          value={priceInput}
+                          onFocus={(e) => e.target.select()}
+                          onChange={(e) => {
+                            const val = e.target.value.replace(",", ".");
+                            if (val === "" || /^\d*\.?\d*$/.test(val)) {
+                              setPriceInput(val);
+                              const num = parseFloat(val);
+                              setPrice(isNaN(num) ? 0 : num);
+                            }
+                          }}
+                          className="w-full pl-8 pr-3 py-2 text-xs bg-gray-50 border border-[#e0e0d6] rounded-xl focus:outline-none focus:border-[#5A5A40] text-gray-900 font-bold font-mono"
+                        />
+                      </div>
                     </div>
                     <div>
                       <label className="block text-[10px] uppercase font-bold text-gray-500 mb-1">Custo de Compra (R$)</label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={cost}
-                        onChange={(e) => setCost(parseFloat(e.target.value) || 0)}
-                        className="w-full px-3 py-2 text-xs bg-gray-50 border border-[#e0e0d6] rounded-xl focus:outline-none"
-                      />
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400">R$</span>
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          placeholder="0,00"
+                          value={costInput}
+                          onFocus={(e) => e.target.select()}
+                          onChange={(e) => {
+                            const val = e.target.value.replace(",", ".");
+                            if (val === "" || /^\d*\.?\d*$/.test(val)) {
+                              setCostInput(val);
+                              const num = parseFloat(val);
+                              setCost(isNaN(num) ? 0 : num);
+                            }
+                          }}
+                          className="w-full pl-8 pr-3 py-2 text-xs bg-gray-50 border border-[#e0e0d6] rounded-xl focus:outline-none focus:border-[#5A5A40] text-gray-900 font-bold font-mono"
+                        />
+                      </div>
                     </div>
                   </div>
 
@@ -599,7 +629,9 @@ export default function AdminProdutos({ products, categories, onAddProduct, onEd
                             <span className="text-[10px] text-gray-400">Estoque:</span>
                             <input
                               type="number"
-                              value={sz.stock}
+                              inputMode="numeric"
+                              value={sz.stock === 0 ? "" : sz.stock}
+                              onFocus={(e) => e.target.select()}
                               onChange={(e) => handleUpdateSizeStock(idx, parseInt(e.target.value, 10) || 0)}
                               className="w-12 text-center p-0.5 border border-gray-200 rounded text-xs font-mono font-bold"
                             />
@@ -627,10 +659,12 @@ export default function AdminProdutos({ products, categories, onAddProduct, onEd
                         />
                         <input
                           type="number"
+                          inputMode="numeric"
                           placeholder="Estoque"
-                          value={newSizeStock}
+                          value={newSizeStock === 0 ? "" : newSizeStock}
+                          onFocus={(e) => e.target.select()}
                           onChange={(e) => setNewSizeStock(parseInt(e.target.value, 10) || 0)}
-                          className="w-14 text-center px-1.5 py-1 text-[11px] bg-white border border-gray-200 rounded-lg focus:outline-none"
+                          className="w-14 text-center px-1.5 py-1 text-[11px] bg-white border border-gray-200 rounded-lg focus:outline-none font-mono"
                         />
                       </div>
 
