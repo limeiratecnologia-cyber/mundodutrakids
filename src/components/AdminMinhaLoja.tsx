@@ -38,9 +38,21 @@ export default function AdminMinhaLoja({ state, onUpdateState }: AdminMinhaLojaP
     });
   };
 
+  const getStoreConfigUpdates = () => ({
+    shippingNeighborhoods: localState.shippingNeighborhoods,
+    shippingType: localState.shippingType,
+    shippingFixedCost: localState.shippingFixedCost,
+    promotions: localState.promotions,
+    avisos: localState.avisos,
+    landpage: localState.landpage,
+    printing: localState.printing,
+    pwa: localState.pwa,
+    adminPasscode: localState.adminPasscode
+  });
+
   const handleBlurSave = () => {
     if (hasChanges) {
-      onUpdateState(localState);
+      onUpdateState(getStoreConfigUpdates());
       setHasChanges(false);
       triggerNotification("Alterações salvas automaticamente! ⚡", "success");
     }
@@ -53,7 +65,7 @@ export default function AdminMinhaLoja({ state, onUpdateState }: AdminMinhaLojaP
   };
 
   const handleSaveChanges = () => {
-    onUpdateState(localState);
+    onUpdateState(getStoreConfigUpdates());
     setHasChanges(false);
     triggerNotification("Todas as configurações foram salvas com sucesso! 🎉", "success");
   };

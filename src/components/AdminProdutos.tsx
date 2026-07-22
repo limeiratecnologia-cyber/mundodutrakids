@@ -93,10 +93,10 @@ export default function AdminProdutos({ products, categories, onAddProduct, onEd
     const file = e.target.files?.[0];
     if (file) {
       try {
-        const compressedB64 = await compressImage(file, 600, 600, 0.7);
+        const compressedB64 = await compressImage(file, 500, 500, 0.6);
         setImage(compressedB64);
         if (!images.includes(compressedB64)) {
-          setImages(prev => [...prev, compressedB64]);
+          setImages(prev => [...prev, compressedB64].slice(0, 4));
         }
         triggerAiImageAnalysis(compressedB64);
       } catch (err) {
@@ -110,13 +110,13 @@ export default function AdminProdutos({ products, categories, onAddProduct, onEd
   const handleMultipleImagesChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files && files.length > 0) {
-      const fileList = Array.from(files);
+      const fileList = Array.from(files).slice(0, 4);
       const loadedImages: string[] = [];
       let count = 0;
       
       for (const file of fileList) {
         try {
-          const compressedB64 = await compressImage(file as File, 600, 600, 0.7);
+          const compressedB64 = await compressImage(file as File, 500, 500, 0.6);
           loadedImages.push(compressedB64);
         } catch (err) {
           console.error("Error compressing image in batch:", err);
@@ -125,7 +125,7 @@ export default function AdminProdutos({ products, categories, onAddProduct, onEd
         if (count === fileList.length) {
           if (loadedImages.length > 0) {
             setImages(prev => {
-              const updated = [...prev, ...loadedImages];
+              const updated = [...prev, ...loadedImages].slice(0, 4);
               if (updated.length > 0 && !image) {
                 setImage(updated[0]);
               }

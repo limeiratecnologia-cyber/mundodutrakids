@@ -101,10 +101,33 @@ function cleanUndefined(obj: any): any {
 export async function saveStateToFirebase(state: any) {
   try {
     const docRef = doc(db, STATE_DOC_PATH);
-    const cleanedState = cleanUndefined(state);
+    let cleanedState = cleanUndefined(state);
+
+    // Safety check: Ensure payload size does not exceed Firestore's 1MB limit (1,048,576 bytes)
+    const jsonString = JSON.stringify(cleanedState);
+    if (jsonString.length > 850000) {
+      console.warn("Payload size approaching Firestore 1MB limit. Optimizing product images...");
+      if (cleanedState.products && Array.isArray(cleanedState.products)) {
+        cleanedState.products = cleanedState.products.map((p: any) => {
+          if (p.images && p.images.length > 3) {
+            return { ...p, images: p.images.slice(0, 3) };
+          }
+          return p;
+        });
+      }
+    }
+
     await setDoc(docRef, cleanedState);
   } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, STATE_DOC_PATH);
+    console.error("Firestore Save Error:", error);
+    // Fallback: keep local storage updated
+    try {
+      if (typeof window !== "undefined" && window.localStorage) {
+        localStorage.setItem("mundo_dutra_kids_state", JSON.stringify(state));
+      }
+    } catch (e) {
+      console.error("LocalStorage fallback error:", e);
+    }
   }
 }
 
