@@ -1741,7 +1741,7 @@ export default function AdminMinhaLoja({ state, onUpdateState }: AdminMinhaLojaP
                         return;
                       }
                       updateLocalState({ adminPasscode: passcodeInput });
-                      onUpdateState({ ...localState, adminPasscode: passcodeInput });
+                      onUpdateState({ adminPasscode: passcodeInput });
                       setHasChanges(false);
                       triggerNotification("Código de acesso atualizado e salvo com sucesso! 🎉");
                     }}

@@ -212,10 +212,15 @@ export const getDefaultState = (): SystemState => {
 export const mergeWithDefaults = (parsed: any): SystemState => {
   const defaults = getDefaultState();
 
+  const products = Array.isArray(parsed?.products) ? parsed.products : defaults.products;
+  const categories = Array.isArray(parsed?.categories) ? parsed.categories : defaults.categories;
+  const orders = Array.isArray(parsed?.orders) ? parsed.orders : defaults.orders;
+  const transactions = Array.isArray(parsed?.transactions) ? parsed.transactions : defaults.transactions;
+
   // Merge nested landpage configuration safely
   const landpage = {
     ...defaults.landpage,
-    ...parsed.landpage,
+    ...parsed?.landpage,
   };
 
   // Ensure bannerImages is populated and doesn't contain empty or blank strings
@@ -233,24 +238,28 @@ export const mergeWithDefaults = (parsed: any): SystemState => {
   // Ensure live config is merged safely
   const live = {
     ...defaults.live,
-    ...parsed.live,
+    ...parsed?.live,
   };
 
   // Ensure printing is merged safely
   const printing = {
     ...defaults.printing,
-    ...parsed.printing,
+    ...parsed?.printing,
   };
 
   // Ensure pwa is merged safely
   const pwa = {
     ...defaults.pwa,
-    ...parsed.pwa,
+    ...parsed?.pwa,
   };
 
   return {
     ...defaults,
     ...parsed,
+    products,
+    categories,
+    orders,
+    transactions,
     landpage,
     live,
     printing,

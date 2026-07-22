@@ -43,26 +43,7 @@ export default function App() {
     
     const unsubscribe = listenToFirebaseState((firebaseState) => {
       if (firebaseState) {
-        setState((prev) => {
-          const merged = mergeWithDefaults(firebaseState);
-
-          // PROTECT LOCAL PRODUCTS:
-          // If local state has products that are missing from incoming firebaseState (e.g. newly created products prior to server sync),
-          // preserve those missing products so they aren't accidentally erased by a stale snapshot!
-          if (prev.products && Array.isArray(prev.products) && merged.products && Array.isArray(merged.products)) {
-            const firebaseProdIds = new Set(merged.products.map((p: any) => p.id));
-            const missingLocalProducts = prev.products.filter((p) => p && p.id && !firebaseProdIds.has(p.id));
-            
-            if (missingLocalProducts.length > 0) {
-              const combinedProducts = [...merged.products, ...missingLocalProducts];
-              const safeState = { ...merged, products: combinedProducts };
-              saveStateToFirebase(safeState);
-              return safeState;
-            }
-          }
-
-          return merged;
-        });
+        setState(mergeWithDefaults(firebaseState));
       } else {
         // If Firestore has no database state yet, seed it with our initial state!
         if (isFirstRun) {
