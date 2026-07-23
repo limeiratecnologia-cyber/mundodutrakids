@@ -212,7 +212,27 @@ export const getDefaultState = (): SystemState => {
 export const mergeWithDefaults = (parsed: any): SystemState => {
   const defaults = getDefaultState();
 
-  const products = Array.isArray(parsed?.products) ? parsed.products : defaults.products;
+  let products = Array.isArray(parsed?.products) ? parsed.products : defaults.products;
+
+  // Safely check if local storage has recently added products that are missing from cloud snapshot
+  try {
+    if (typeof window !== "undefined" && window.localStorage) {
+      const storedLocal = localStorage.getItem("mundo_dutra_kids_state");
+      if (storedLocal) {
+        const localData = JSON.parse(storedLocal);
+        if (Array.isArray(localData?.products) && localData.products.length > products.length) {
+          const cloudIds = new Set(products.map((p: any) => p?.id));
+          const missingLocal = localData.products.filter((p: any) => p && p.id && !cloudIds.has(p.id));
+          if (missingLocal.length > 0) {
+            products = [...products, ...missingLocal];
+          }
+        }
+      }
+    }
+  } catch (e) {
+    // Ignore localStorage parse error
+  }
+
   const categories = Array.isArray(parsed?.categories) ? parsed.categories : defaults.categories;
   const orders = Array.isArray(parsed?.orders) ? parsed.orders : defaults.orders;
   const transactions = Array.isArray(parsed?.transactions) ? parsed.transactions : defaults.transactions;

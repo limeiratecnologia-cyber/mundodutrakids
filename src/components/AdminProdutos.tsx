@@ -306,25 +306,30 @@ export default function AdminProdutos({ products, categories, onAddProduct, onEd
       return;
     }
 
-    if (!categoryId) {
+    const selectedCategoryId = categoryId || categories[0]?.id || "Geral";
+    if (!selectedCategoryId) {
       triggerNotification("Por favor, selecione uma categoria válida para o produto.", "error");
       return;
     }
 
-    const finalImage = image || (images.length > 0 ? images[0] : "");
-    const finalImages = images.length > 0 ? images : (finalImage ? [finalImage] : []);
+    const finalPrice = price > 0 ? price : (parseFloat(priceInput.replace(",", ".")) || 0);
+    const finalCost = cost > 0 ? cost : (parseFloat(costInput.replace(",", ".")) || 0);
+
+    const defaultFallbackImg = "https://images.unsplash.com/photo-1519457431-44ccd64a579b?q=80&w=400";
+    const finalImage = (image && image.trim()) || (images.length > 0 ? images[0] : defaultFallbackImg);
+    const finalImages = images.length > 0 ? images : [finalImage];
 
     if (editingProduct) {
       const updated: Product = {
         ...editingProduct,
-        name,
-        price,
-        cost,
+        name: name.trim(),
+        price: finalPrice,
+        cost: finalCost,
         image: finalImage,
         images: finalImages,
-        categoryId,
-        age,
-        description,
+        categoryId: selectedCategoryId,
+        age: age || "Livre / Todos",
+        description: description || `Vestuário infantil ${name.trim()} com excelente acabamento e alto conforto.`,
         status,
         sizes: sizeGrid
       };
@@ -334,20 +339,20 @@ export default function AdminProdutos({ products, categories, onAddProduct, onEd
       const newProduct: Product = {
         id: `prod-${Date.now()}`,
         code: nextSequentialCode, // Auto sequential sequence
-        name,
-        price,
-        cost,
+        name: name.trim(),
+        price: finalPrice,
+        cost: finalCost,
         image: finalImage,
         images: finalImages,
-        categoryId,
-        age,
-        description,
+        categoryId: selectedCategoryId,
+        age: age || "Livre / Todos",
+        description: description || `Vestuário infantil ${name.trim()} com excelente acabamento e alto conforto.`,
         status,
         createdAt: new Date().toISOString(),
         sizes: sizeGrid
       };
       onAddProduct(newProduct);
-      triggerNotification(`Produto cadastrado e gerado o código sequencial ${nextSequentialCode}!`);
+      triggerNotification(`Produto cadastrado com sucesso! Código gerado: ${nextSequentialCode}`);
     }
 
     setIsFormOpen(false);

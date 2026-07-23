@@ -96,37 +96,65 @@ function cleanUndefined(obj: any): any {
 }
 
 async function shrinkBase64IfNeeded(val: string): Promise<string> {
-  if (typeof val === "string" && val.startsWith("data:image/") && val.length > 50000) {
+  if (typeof val === "string" && val.startsWith("data:image/") && val.length > 30000) {
     return new Promise((resolve) => {
+      let isSettled = false;
+      const done = (result: string) => {
+        if (!isSettled) {
+          isSettled = true;
+          resolve(result);
+        }
+      };
+
+      // Strict 1 second timeout to prevent blocking Firestore writes
+      const timeoutId = setTimeout(() => {
+        done(val);
+      }, 1000);
+
       if (typeof window === "undefined") {
-        resolve(val);
+        clearTimeout(timeoutId);
+        done(val);
         return;
       }
-      const img = new Image();
-      img.onload = () => {
-        let width = img.width;
-        let height = img.height;
-        const maxDim = 400;
-        if (width > maxDim || height > maxDim) {
-          const ratio = Math.min(maxDim / width, maxDim / height);
-          width = Math.round(width * ratio);
-          height = Math.round(height * ratio);
-        }
-        const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext("2d");
-        if (ctx) {
-          ctx.fillStyle = "#FFFFFF";
-          ctx.fillRect(0, 0, width, height);
-          ctx.drawImage(img, 0, 0, width, height);
-          resolve(canvas.toDataURL("image/jpeg", 0.5));
-          return;
-        }
-        resolve(val);
-      };
-      img.onerror = () => resolve(val);
-      img.src = val;
+
+      try {
+        const img = new Image();
+        img.onload = () => {
+          clearTimeout(timeoutId);
+          try {
+            let width = img.width || 400;
+            let height = img.height || 400;
+            const maxDim = 350;
+            if (width > maxDim || height > maxDim) {
+              const ratio = Math.min(maxDim / width, maxDim / height);
+              width = Math.round(width * ratio);
+              height = Math.round(height * ratio);
+            }
+            const canvas = document.createElement("canvas");
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext("2d");
+            if (ctx) {
+              ctx.fillStyle = "#FFFFFF";
+              ctx.fillRect(0, 0, width, height);
+              ctx.drawImage(img, 0, 0, width, height);
+              done(canvas.toDataURL("image/jpeg", 0.5));
+              return;
+            }
+          } catch (err) {
+            console.error("Canvas shrink error:", err);
+          }
+          done(val);
+        };
+        img.onerror = () => {
+          clearTimeout(timeoutId);
+          done(val);
+        };
+        img.src = val;
+      } catch (e) {
+        clearTimeout(timeoutId);
+        done(val);
+      }
     });
   }
   return val;
