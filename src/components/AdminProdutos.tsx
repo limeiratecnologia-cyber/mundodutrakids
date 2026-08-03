@@ -337,7 +337,7 @@ export default function AdminProdutos({ products, categories, onAddProduct, onEd
       triggerNotification("Produto atualizado com sucesso!");
     } else {
       const newProduct: Product = {
-        id: `prod-${Date.now()}`,
+        id: `prod-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
         code: nextSequentialCode, // Auto sequential sequence
         name: name.trim(),
         price: finalPrice,

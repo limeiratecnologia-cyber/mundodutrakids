@@ -95,8 +95,8 @@ function cleanUndefined(obj: any): any {
   return obj;
 }
 
-async function shrinkBase64IfNeeded(val: string): Promise<string> {
-  if (typeof val === "string" && val.startsWith("data:image/") && val.length > 30000) {
+async function shrinkBase64IfNeeded(val: string, targetMaxDim: number = 300, quality: number = 0.45): Promise<string> {
+  if (typeof val === "string" && val.startsWith("data:image/") && val.length > 20000) {
     return new Promise((resolve) => {
       let isSettled = false;
       const done = (result: string) => {
@@ -122,9 +122,9 @@ async function shrinkBase64IfNeeded(val: string): Promise<string> {
         img.onload = () => {
           clearTimeout(timeoutId);
           try {
-            let width = img.width || 400;
-            let height = img.height || 400;
-            const maxDim = 350;
+            let width = img.width || targetMaxDim;
+            let height = img.height || targetMaxDim;
+            const maxDim = targetMaxDim;
             if (width > maxDim || height > maxDim) {
               const ratio = Math.min(maxDim / width, maxDim / height);
               width = Math.round(width * ratio);
@@ -138,7 +138,7 @@ async function shrinkBase64IfNeeded(val: string): Promise<string> {
               ctx.fillStyle = "#FFFFFF";
               ctx.fillRect(0, 0, width, height);
               ctx.drawImage(img, 0, 0, width, height);
-              done(canvas.toDataURL("image/jpeg", 0.5));
+              done(canvas.toDataURL("image/jpeg", quality));
               return;
             }
           } catch (err) {
@@ -161,39 +161,57 @@ async function shrinkBase64IfNeeded(val: string): Promise<string> {
 }
 
 /**
- * Saves the entire SystemState to Firebase Firestore
+ * Saves the entire SystemState to Firebase Firestore safely with payload size guards
  */
 export async function saveStateToFirebase(state: any) {
   try {
     let cleanedState = cleanUndefined(state);
 
-    // Compress any large base64 images inside products to keep payload ultra light (~100-200KB)
+    // Compress base64 images inside products to keep payload ultra light (~100-200KB total)
     if (cleanedState.products && Array.isArray(cleanedState.products)) {
       cleanedState.products = await Promise.all(
         cleanedState.products.map(async (p: any) => {
           let mainImg = p.image || "";
           let imgs = Array.isArray(p.images) ? p.images : [];
 
-          if (typeof mainImg === "string" && mainImg.startsWith("data:image/") && mainImg.length > 50000) {
-            mainImg = await shrinkBase64IfNeeded(mainImg);
+          if (typeof mainImg === "string" && mainImg.startsWith("data:image/")) {
+            mainImg = await shrinkBase64IfNeeded(mainImg, 300, 0.45);
           }
 
           const processedImgs = await Promise.all(
             imgs.map(async (img: any) => {
-              if (typeof img === "string" && img.startsWith("data:image/") && img.length > 50000) {
-                return await shrinkBase64IfNeeded(img);
+              if (typeof img === "string" && img.startsWith("data:image/")) {
+                return await shrinkBase64IfNeeded(img, 280, 0.4);
               }
               return img;
             })
           );
 
+          // Avoid duplicating identical images in gallery
+          const uniqueImgs = Array.from(new Set([mainImg, ...processedImgs])).filter(Boolean);
+
           return {
             ...p,
             image: mainImg,
-            images: processedImgs
+            images: uniqueImgs.slice(0, 3)
           };
         })
       );
+    }
+
+    // Safety check: ensure stringified document size is well under 1MB (1,048,576 bytes)
+    const jsonString = JSON.stringify(cleanedState);
+    if (jsonString.length > 700000) {
+      console.warn("Payload size nearing 1MB Firestore limit, applying extra compression...");
+      if (cleanedState.products && Array.isArray(cleanedState.products)) {
+        cleanedState.products = await Promise.all(
+          cleanedState.products.map(async (p: any) => ({
+            ...p,
+            image: await shrinkBase64IfNeeded(p.image || "", 200, 0.35),
+            images: [await shrinkBase64IfNeeded(p.image || "", 200, 0.35)]
+          }))
+        );
+      }
     }
 
     const docRef = doc(db, STATE_DOC_PATH);
