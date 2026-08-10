@@ -193,7 +193,7 @@ export async function saveStateToFirebase(state: any) {
           return {
             ...p,
             image: mainImg,
-            images: uniqueImgs.slice(0, 3)
+            images: uniqueImgs.slice(0, 10)
           };
         })
       );

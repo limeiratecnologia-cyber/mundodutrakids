@@ -96,7 +96,7 @@ export default function AdminProdutos({ products, categories, onAddProduct, onEd
         const compressedB64 = await compressImage(file, 400, 400, 0.55);
         setImage(compressedB64);
         if (!images.includes(compressedB64)) {
-          setImages(prev => [...prev, compressedB64].slice(0, 4));
+          setImages(prev => [...prev, compressedB64].slice(0, 10));
         }
         triggerAiImageAnalysis(compressedB64);
       } catch (err) {
@@ -110,7 +110,7 @@ export default function AdminProdutos({ products, categories, onAddProduct, onEd
   const handleMultipleImagesChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files && files.length > 0) {
-      const fileList = Array.from(files).slice(0, 4);
+      const fileList = Array.from(files).slice(0, 10);
       const loadedImages: string[] = [];
       let count = 0;
       
@@ -125,7 +125,7 @@ export default function AdminProdutos({ products, categories, onAddProduct, onEd
         if (count === fileList.length) {
           if (loadedImages.length > 0) {
             setImages(prev => {
-              const updated = [...prev, ...loadedImages].slice(0, 4);
+              const updated = [...prev, ...loadedImages].slice(0, 10);
               if (updated.length > 0 && !image) {
                 setImage(updated[0]);
               }
@@ -522,7 +522,7 @@ export default function AdminProdutos({ products, categories, onAddProduct, onEd
                     {/* Multi-upload Button */}
                     <div className="bg-gray-50 p-3 rounded-2xl border border-[#e0e0d6] space-y-3">
                       <div className="flex items-center justify-between">
-                        <span className="text-[10px] text-gray-400 font-medium">Selecione uma ou mais fotos de uma vez</span>
+                        <span className="text-[10px] text-gray-500 font-medium">Selecione até 10 fotos por produto ({images.length}/10)</span>
                         <label className="cursor-pointer bg-[#5A5A40] hover:bg-[#5A5A40]/90 text-white text-[10px] font-bold px-2.5 py-1.5 rounded-xl inline-block transition shadow-sm">
                           <Plus className="w-3 h-3 inline mr-1" /> Adicionar Fotos
                           <input
@@ -537,7 +537,7 @@ export default function AdminProdutos({ products, categories, onAddProduct, onEd
 
                       {/* Displaying Image Grid */}
                       {images.length > 0 ? (
-                        <div className="grid grid-cols-4 gap-2 pt-1">
+                        <div className="grid grid-cols-4 sm:grid-cols-5 gap-2 pt-1">
                           {images.map((img, idx) => {
                             const isMain = img === image;
                             return (
