@@ -199,6 +199,19 @@ export async function saveStateToFirebase(state: any) {
       );
     }
 
+    // Safety check: Never overwrite an existing populated product catalog with an empty list
+    if (!cleanedState.products || (Array.isArray(cleanedState.products) && cleanedState.products.length === 0)) {
+      try {
+        const existingDoc = await getStateFromFirebase();
+        if (existingDoc && Array.isArray(existingDoc.products) && existingDoc.products.length > 0) {
+          console.warn("Prevented overwriting populated products with an empty array!");
+          cleanedState.products = existingDoc.products;
+        }
+      } catch (e) {
+        console.error("Error during empty state guard check:", e);
+      }
+    }
+
     // Safety check: ensure stringified document size is well under 1MB (1,048,576 bytes)
     const jsonString = JSON.stringify(cleanedState);
     if (jsonString.length > 700000) {

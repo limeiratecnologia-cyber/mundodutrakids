@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { Product, Category } from "../types";
 import { compressImage } from "../utils/imageCompressor";
+import { getDefaultState } from "../initialState";
 
 interface AdminProdutosProps {
   products: Product[];
@@ -27,6 +28,44 @@ export default function AdminProdutos({ products, categories, onAddProduct, onEd
     setTimeout(() => {
       setNotification(null);
     }, 3500);
+  };
+
+  // Restore default products / local backup helper
+  const handleRestoreDefaultProducts = () => {
+    const defaults = getDefaultState().products;
+    let localBackup: Product[] = [];
+    try {
+      if (typeof window !== "undefined" && window.localStorage) {
+        const stored = localStorage.getItem("mundo_dutra_kids_products_backup");
+        if (stored) localBackup = JSON.parse(stored);
+      }
+    } catch (e) {
+      // Ignore
+    }
+
+    const currentIds = new Set(products.map(p => p.id));
+    const currentCodes = new Set(products.map(p => p.code));
+
+    const restoredProds: Product[] = [];
+
+    [...defaults, ...localBackup].forEach(p => {
+      if (p && p.id && !currentIds.has(p.id) && (!p.code || !currentCodes.has(p.code))) {
+        restoredProds.push(p);
+        currentIds.add(p.id);
+        if (p.code) currentCodes.add(p.code);
+      }
+    });
+
+    if (restoredProds.length === 0) {
+      triggerNotification("Seu catálogo já contém os produtos padrão ativados!", "error");
+      return;
+    }
+
+    restoredProds.forEach(p => {
+      onAddProduct(p);
+    });
+
+    triggerNotification(`${restoredProds.length} produto(s) restaurado(s) com sucesso no catálogo!`);
   };
 
   // Form Fields
@@ -371,17 +410,27 @@ export default function AdminProdutos({ products, categories, onAddProduct, onEd
       )}
       
       {/* Header controls */}
-      <div className="flex justify-between items-center bg-white p-4 rounded-2xl border border-[#e0e0d6] shadow-sm">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white p-4 rounded-2xl border border-[#e0e0d6] shadow-sm">
         <div>
           <h3 className="font-extrabold text-gray-900 text-sm">Controle de Catálogo de Produtos</h3>
           <p className="text-xs text-gray-500">Cadastre grades, preços, configure estoque e edite com IA.</p>
         </div>
-        <button
-          onClick={handleOpenAddForm}
-          className="bg-[#5A5A40] hover:bg-[#484833] text-white px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
-        >
-          <Plus className="w-4 h-4" /> Cadastrar Novo Produto
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={handleRestoreDefaultProducts}
+            title="Recupera ou re-adiciona os produtos padrão do modelo inicial se tiverem sido removidos"
+            className="bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs"
+          >
+            <RefreshCw className="w-3.5 h-3.5 text-amber-700" /> Restaurar Catálogo Padrão
+          </button>
+          <button
+            onClick={handleOpenAddForm}
+            className="bg-[#5A5A40] hover:bg-[#484833] text-white px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
+          >
+            <Plus className="w-4 h-4" /> Cadastrar Novo Produto
+          </button>
+        </div>
       </div>
 
       {/* Form Dialog/Overlay */}
