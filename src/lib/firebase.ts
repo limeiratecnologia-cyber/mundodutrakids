@@ -253,13 +253,14 @@ export function listenToFirebaseState(onUpdate: (state: any) => void) {
   return onSnapshot(
     docRef,
     (docSnap) => {
-      // Ignore pending local write snapshots to prevent flicker or temporary rollbacks
-      if (docSnap.exists() && !docSnap.metadata.hasPendingWrites) {
+      if (docSnap.exists()) {
         onUpdate(docSnap.data());
+      } else {
+        onUpdate(null);
       }
     },
     (error) => {
-      handleFirestoreError(error, OperationType.GET, STATE_DOC_PATH);
+      console.error("Firestore error listening to state:", error);
     }
   );
 }

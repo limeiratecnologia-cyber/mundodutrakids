@@ -46,34 +46,15 @@ export default function App() {
     
     const unsubscribe = listenToFirebaseState((firebaseState) => {
       if (firebaseState) {
-        setState((prev) => {
-          const merged = mergeWithDefaults(firebaseState);
-
-          // Filter out explicitly deleted products
-          const cleanSnapshotProducts = (merged.products || []).filter(
-            (p) => p && p.id && !deletedProductIdsRef.current.has(p.id)
-          );
-
-          // Identify locally created products that aren't yet in the Firebase snapshot
-          const snapshotIds = new Set(cleanSnapshotProducts.map((p) => p.id));
-          const unsyncedLocalProducts = (prev.products || []).filter(
-            (p) => p && p.id && !snapshotIds.has(p.id) && !deletedProductIdsRef.current.has(p.id)
-          );
-
-          if (unsyncedLocalProducts.length > 0) {
-            const combinedProducts = [...cleanSnapshotProducts, ...unsyncedLocalProducts];
-            const combinedState = { ...merged, products: combinedProducts };
-            saveState(combinedState);
-            saveStateToFirebase(combinedState);
-            return combinedState;
-          }
-
-          return { ...merged, products: cleanSnapshotProducts };
-        });
+        const merged = mergeWithDefaults(firebaseState);
+        setState(merged);
+        saveState(merged); // Cache locally for offline backup
       } else {
         // If Firestore has no database state yet, seed it with our initial state!
         if (isFirstRun) {
-          saveStateToFirebase(getInitialState());
+          const initial = getInitialState();
+          setState(initial);
+          saveStateToFirebase(initial);
         }
       }
       isFirstRun = false;
@@ -93,16 +74,6 @@ export default function App() {
 
   const handleUpdateState = (newStateUpdates: Partial<SystemState>) => {
     setState((prev) => {
-      // If products are updated, track any removed IDs to avoid ghost resurrection
-      if (newStateUpdates.products && Array.isArray(newStateUpdates.products)) {
-        const nextIds = new Set(newStateUpdates.products.map((p) => p.id));
-        prev.products.forEach((p) => {
-          if (p && p.id && !nextIds.has(p.id)) {
-            deletedProductIdsRef.current.add(p.id);
-          }
-        });
-      }
-
       const next = { ...prev, ...newStateUpdates };
       saveState(next); // Save immediately to localStorage
       saveStateToFirebase(next); // Asynchronously sync to Firebase
