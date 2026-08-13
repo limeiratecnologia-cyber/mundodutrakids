@@ -205,7 +205,8 @@ export const getDefaultState = (): SystemState => {
       logoUrl: "https://images.unsplash.com/photo-1596461404969-9ae70f2830c1?q=80&w=200&auto=format&fit=crop",
       themeColor: "#5A5A40",
       displayMode: "standalone"
-    }
+    },
+    auditLogs: []
   };
 };
 
@@ -239,6 +240,7 @@ export const mergeWithDefaults = (parsed: any): SystemState => {
   const categories = Array.isArray(parsed?.categories) && parsed.categories.length > 0 ? parsed.categories : defaults.categories;
   const orders = Array.isArray(parsed?.orders) ? parsed.orders : defaults.orders;
   const transactions = Array.isArray(parsed?.transactions) ? parsed.transactions : defaults.transactions;
+  const auditLogs = Array.isArray(parsed?.auditLogs) ? parsed.auditLogs : defaults.auditLogs;
 
   // Merge nested landpage configuration safely
   const landpage = {
@@ -283,6 +285,7 @@ export const mergeWithDefaults = (parsed: any): SystemState => {
     categories,
     orders,
     transactions,
+    auditLogs,
     landpage,
     live,
     printing,

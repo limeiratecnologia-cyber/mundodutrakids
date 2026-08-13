@@ -1,9 +1,9 @@
 import React, { useState } from "react";
 import { 
   LayoutDashboard, ShoppingCart, Scissors, Package, FolderHeart, 
-  DollarSign, Store, Radio, BarChart3, Eye, LogOut, Menu, X 
+  DollarSign, Store, Radio, BarChart3, ShieldCheck, Eye, LogOut, Menu, X 
 } from "lucide-react";
-import { SystemState, Product, Category, Transaction, Order } from "../types";
+import { SystemState, Product, Category, Transaction, Order, AuditLogEntry } from "../types";
 
 // Inner views
 import AdminDashboard from "./AdminDashboard";
@@ -15,6 +15,7 @@ import AdminFinanceiro from "./AdminFinanceiro";
 import AdminMinhaLoja from "./AdminMinhaLoja";
 import AdminLiveShop from "./AdminLiveShop";
 import AdminRelatorios from "./AdminRelatorios";
+import AdminAuditoria from "./AdminAuditoria";
 
 interface AdminLayoutProps {
   state: SystemState;
@@ -39,22 +40,74 @@ export default function AdminLayout({ state, onUpdateState, onBackToStore }: Adm
     { id: "minha-loja", label: "Minha Loja", icon: Store },
     { id: "live-shop", label: "Live Shop", icon: Radio },
     { id: "relatorios", label: "Relatórios", icon: BarChart3 },
+    { id: "auditoria", label: "Auditoria & Backups", icon: ShieldCheck },
   ];
 
   // Helpers to pipe state updates
   const handleAddProduct = (newProduct: Product) => {
-    onUpdateState({ products: [...products, newProduct] });
+    const totalStock = (newProduct.sizes || []).reduce((acc, s) => acc + s.stock, 0);
+    const logEntry: AuditLogEntry = {
+      id: `log-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      timestamp: new Date().toISOString(),
+      action: "create",
+      productName: newProduct.name,
+      productId: newProduct.id,
+      details: `Novo produto cadastrado: R$ ${(newProduct.price || 0).toFixed(2)} | Código: ${newProduct.code} | Estoque: ${totalStock} un`,
+      user: "Admin"
+    };
+    const updatedLogs = [logEntry, ...(state.auditLogs || [])].slice(0, 150);
+    onUpdateState({ 
+      products: [...products, newProduct],
+      auditLogs: updatedLogs
+    });
   };
 
   const handleEditProduct = (updated: Product) => {
+    const oldProduct = products.find(p => p.id === updated.id);
+    const changes: string[] = [];
+    if (oldProduct) {
+      if (oldProduct.price !== updated.price) changes.push(`Preço: R$ ${(oldProduct.price || 0).toFixed(2)} ➔ R$ ${(updated.price || 0).toFixed(2)}`);
+      if (oldProduct.name !== updated.name) changes.push(`Nome: "${oldProduct.name}" ➔ "${updated.name}"`);
+      if (oldProduct.status !== updated.status) changes.push(`Status: ${oldProduct.status} ➔ ${updated.status}`);
+      const oldStock = (oldProduct.sizes || []).reduce((acc, s) => acc + s.stock, 0);
+      const newStock = (updated.sizes || []).reduce((acc, s) => acc + s.stock, 0);
+      if (oldStock !== newStock) changes.push(`Estoque: ${oldStock} ➔ ${newStock} un`);
+    }
+    const details = changes.length > 0 ? changes.join(" | ") : "Produto atualizado";
+
+    const logEntry: AuditLogEntry = {
+      id: `log-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      timestamp: new Date().toISOString(),
+      action: "update",
+      productName: updated.name,
+      productId: updated.id,
+      details,
+      user: "Admin"
+    };
+    const updatedLogs = [logEntry, ...(state.auditLogs || [])].slice(0, 150);
+
     onUpdateState({
-      products: products.map(p => p.id === updated.id ? updated : p)
+      products: products.map(p => p.id === updated.id ? updated : p),
+      auditLogs: updatedLogs
     });
   };
 
   const handleDeleteProduct = (id: string) => {
+    const prod = products.find(p => p.id === id);
+    const logEntry: AuditLogEntry = {
+      id: `log-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      timestamp: new Date().toISOString(),
+      action: "delete",
+      productName: prod?.name || "Produto",
+      productId: id,
+      details: `Produto removido do catálogo (Código: ${prod?.code || "N/A"})`,
+      user: "Admin"
+    };
+    const updatedLogs = [logEntry, ...(state.auditLogs || [])].slice(0, 150);
+
     onUpdateState({
-      products: products.filter(p => p.id !== id)
+      products: products.filter(p => p.id !== id),
+      auditLogs: updatedLogs
     });
   };
 
@@ -290,6 +343,12 @@ export default function AdminLayout({ state, onUpdateState, onBackToStore }: Adm
             />
           )}
           {activeTab === "relatorios" && <AdminRelatorios state={state} />}
+          {activeTab === "auditoria" && (
+            <AdminAuditoria 
+              state={state} 
+              onUpdateState={handleStatePipedUpdates} 
+            />
+          )}
         </div>
 
       </main>

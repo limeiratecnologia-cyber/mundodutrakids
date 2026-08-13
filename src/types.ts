@@ -149,6 +149,26 @@ export interface PwaConfig {
   displayMode: "standalone" | "fullscreen" | "browser";
 }
 
+export interface AuditLogEntry {
+  id: string;
+  timestamp: string;
+  action: "create" | "update" | "delete" | "restore" | "backup_restore";
+  productName: string;
+  productId?: string;
+  details: string;
+  user?: string;
+}
+
+export interface PeriodicBackupSnapshot {
+  id: string;
+  timestamp: string;
+  formattedDate: string;
+  productCount: number;
+  orderCount: number;
+  categoryCount: number;
+  state: SystemState;
+}
+
 export interface SystemState {
   adminPasscode: string;
   products: Product[];
@@ -164,4 +184,5 @@ export interface SystemState {
   printing: PrintingConfig;
   live: LiveConfig;
   pwa?: PwaConfig;
+  auditLogs?: AuditLogEntry[];
 }

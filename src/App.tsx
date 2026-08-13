@@ -5,6 +5,7 @@ import StoreFront from "./components/StoreFront";
 import AdminLayout from "./components/AdminLayout";
 import AdminPasscodeModal from "./components/AdminPasscodeModal";
 import { saveStateToFirebase, listenToFirebaseState } from "./lib/firebase";
+import { performPeriodicBackup, checkAndRunMidnightBackup } from "./utils/backupService";
 import { RefreshCw } from "lucide-react";
 import { AnimatePresence } from "motion/react";
 
@@ -21,6 +22,21 @@ export default function App() {
   useEffect(() => {
     saveState(state);
   }, [state]);
+
+  // Periodic backup routine & midnight backup check
+  useEffect(() => {
+    if (!loading && state) {
+      performPeriodicBackup(state);
+      checkAndRunMidnightBackup(state);
+
+      const interval = setInterval(() => {
+        performPeriodicBackup(state);
+        checkAndRunMidnightBackup(state);
+      }, 30000);
+
+      return () => clearInterval(interval);
+    }
+  }, [state, loading]);
 
   // Dynamic Page Title & Favicon sync
   useEffect(() => {
