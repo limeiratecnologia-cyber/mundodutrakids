@@ -1,5 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getFirestore, doc, getDoc, setDoc, onSnapshot, getDocFromServer } from "firebase/firestore";
+import { compressBase64Image } from "../utils/imageCompressor";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCJaMqFkHxfuUk7dLnBE2md9WyGkNZ94do",
@@ -96,66 +97,12 @@ function cleanUndefined(obj: any): any {
 }
 
 async function shrinkBase64IfNeeded(val: string, targetMaxDim: number = 300, quality: number = 0.45): Promise<string> {
-  if (typeof val === "string" && val.startsWith("data:image/") && val.length > 20000) {
-    return new Promise((resolve) => {
-      let isSettled = false;
-      const done = (result: string) => {
-        if (!isSettled) {
-          isSettled = true;
-          resolve(result);
-        }
-      };
-
-      // Strict 1 second timeout to prevent blocking Firestore writes
-      const timeoutId = setTimeout(() => {
-        done(val);
-      }, 1000);
-
-      if (typeof window === "undefined") {
-        clearTimeout(timeoutId);
-        done(val);
-        return;
-      }
-
-      try {
-        const img = new Image();
-        img.onload = () => {
-          clearTimeout(timeoutId);
-          try {
-            let width = img.width || targetMaxDim;
-            let height = img.height || targetMaxDim;
-            const maxDim = targetMaxDim;
-            if (width > maxDim || height > maxDim) {
-              const ratio = Math.min(maxDim / width, maxDim / height);
-              width = Math.round(width * ratio);
-              height = Math.round(height * ratio);
-            }
-            const canvas = document.createElement("canvas");
-            canvas.width = width;
-            canvas.height = height;
-            const ctx = canvas.getContext("2d");
-            if (ctx) {
-              ctx.fillStyle = "#FFFFFF";
-              ctx.fillRect(0, 0, width, height);
-              ctx.drawImage(img, 0, 0, width, height);
-              done(canvas.toDataURL("image/jpeg", quality));
-              return;
-            }
-          } catch (err) {
-            console.error("Canvas shrink error:", err);
-          }
-          done(val);
-        };
-        img.onerror = () => {
-          clearTimeout(timeoutId);
-          done(val);
-        };
-        img.src = val;
-      } catch (e) {
-        clearTimeout(timeoutId);
-        done(val);
-      }
-    });
+  if (typeof val === "string" && val.length > 15000 && !val.startsWith("http://") && !val.startsWith("https://")) {
+    try {
+      return await compressBase64Image(val, targetMaxDim, targetMaxDim, quality);
+    } catch (e) {
+      return val;
+    }
   }
   return val;
 }
@@ -174,16 +121,11 @@ export async function saveStateToFirebase(state: any) {
           let mainImg = p.image || "";
           let imgs = Array.isArray(p.images) ? p.images : [];
 
-          if (typeof mainImg === "string" && mainImg.startsWith("data:image/")) {
-            mainImg = await shrinkBase64IfNeeded(mainImg, 300, 0.45);
-          }
+          mainImg = await shrinkBase64IfNeeded(mainImg, 300, 0.45);
 
           const processedImgs = await Promise.all(
             imgs.map(async (img: any) => {
-              if (typeof img === "string" && img.startsWith("data:image/")) {
-                return await shrinkBase64IfNeeded(img, 280, 0.4);
-              }
-              return img;
+              return await shrinkBase64IfNeeded(img, 280, 0.4);
             })
           );
 
@@ -193,7 +135,7 @@ export async function saveStateToFirebase(state: any) {
           return {
             ...p,
             image: mainImg,
-            images: uniqueImgs.slice(0, 10)
+            images: uniqueImgs.slice(0, 8)
           };
         })
       );
@@ -213,17 +155,24 @@ export async function saveStateToFirebase(state: any) {
     }
 
     // Safety check: ensure stringified document size is well under 1MB (1,048,576 bytes)
-    const jsonString = JSON.stringify(cleanedState);
-    if (jsonString.length > 700000) {
-      console.warn("Payload size nearing 1MB Firestore limit, applying extra compression...");
+    let jsonString = JSON.stringify(cleanedState);
+    if (jsonString.length > 550000) {
+      console.warn("Payload size nearing Firestore limit, applying maximum compression...");
       if (cleanedState.products && Array.isArray(cleanedState.products)) {
         cleanedState.products = await Promise.all(
-          cleanedState.products.map(async (p: any) => ({
-            ...p,
-            image: await shrinkBase64IfNeeded(p.image || "", 200, 0.35),
-            images: [await shrinkBase64IfNeeded(p.image || "", 200, 0.35)]
-          }))
+          cleanedState.products.map(async (p: any) => {
+            const smallImg = await shrinkBase64IfNeeded(p.image || "", 200, 0.35);
+            return {
+              ...p,
+              image: smallImg,
+              images: [smallImg]
+            };
+          })
         );
+      }
+      // Trim audit logs if array is huge
+      if (Array.isArray(cleanedState.auditLogs) && cleanedState.auditLogs.length > 50) {
+        cleanedState.auditLogs = cleanedState.auditLogs.slice(0, 50);
       }
     }
 

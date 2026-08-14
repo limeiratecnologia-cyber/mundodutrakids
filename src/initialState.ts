@@ -215,20 +215,9 @@ export const mergeWithDefaults = (parsed: any): SystemState => {
 
   let products = Array.isArray(parsed?.products) && parsed.products.length > 0 ? parsed.products : defaults.products;
 
-  // Restore from local backup if available and cloud has fewer products
+  // Cache products locally for offline support without overriding Cloud state
   try {
     if (typeof window !== "undefined" && window.localStorage) {
-      const backupStr = localStorage.getItem("mundo_dutra_kids_products_backup");
-      if (backupStr) {
-        const backupProds = JSON.parse(backupStr);
-        if (Array.isArray(backupProds) && backupProds.length > products.length) {
-          const currentIds = new Set(products.map((p: any) => p?.id));
-          const missing = backupProds.filter((p: any) => p && p.id && !currentIds.has(p.id));
-          if (missing.length > 0) {
-            products = [...products, ...missing];
-          }
-        }
-      }
       if (products.length > 0) {
         localStorage.setItem("mundo_dutra_kids_products_backup", JSON.stringify(products));
       }
