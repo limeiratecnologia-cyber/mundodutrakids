@@ -56,31 +56,24 @@ export default function App() {
     }
   }, [state.landpage.faviconImage, state.landpage.logoImage, state.landpage.heroTitle, state.pwa?.name]);
 
-  // Connect to Firebase Firestore for real-time, persistent database sync
+  // Connect to Firebase Firestore for real-time, persistent database sync across all platforms
   useEffect(() => {
-    let isFirstRun = true;
-    
+    let hasLoadedCloudData = false;
+
     const unsubscribe = listenToFirebaseState((firebaseState) => {
-      if (firebaseState) {
+      if (firebaseState && ((Array.isArray(firebaseState.products) && firebaseState.products.length > 0) || Object.keys(firebaseState).length > 2)) {
+        hasLoadedCloudData = true;
         const merged = mergeWithDefaults(firebaseState);
         setState(merged);
         saveState(merged); // Cache locally for offline backup
-      } else {
-        // If Firestore has no database state yet, seed it with our initial state!
-        if (isFirstRun) {
-          const initial = getInitialState();
-          setState(initial);
-          saveStateToFirebase(initial);
-        }
       }
-      isFirstRun = false;
       setLoading(false);
     });
 
-    // Fallback if Firebase takes too long or fails to load
+    // Fallback if Firebase takes too long or device is offline
     const timeout = setTimeout(() => {
       setLoading(false);
-    }, 3000);
+    }, 2500);
 
     return () => {
       unsubscribe();

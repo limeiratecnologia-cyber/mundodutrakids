@@ -4,6 +4,7 @@ import {
   DollarSign, Store, Radio, BarChart3, ShieldCheck, Eye, LogOut, Menu, X 
 } from "lucide-react";
 import { SystemState, Product, Category, Transaction, Order, AuditLogEntry } from "../types";
+import { syncSingleProductToFirebase, deleteSingleProductFromFirebase } from "../lib/firebase";
 
 // Inner views
 import AdminDashboard from "./AdminDashboard";
@@ -56,6 +57,10 @@ export default function AdminLayout({ state, onUpdateState, onBackToStore }: Adm
       user: "Admin"
     };
     const updatedLogs = [logEntry, ...(state.auditLogs || [])].slice(0, 150);
+    
+    // Direct sync to Firebase products collection
+    syncSingleProductToFirebase(newProduct);
+
     onUpdateState({ 
       products: [...products, newProduct],
       auditLogs: updatedLogs
@@ -86,6 +91,9 @@ export default function AdminLayout({ state, onUpdateState, onBackToStore }: Adm
     };
     const updatedLogs = [logEntry, ...(state.auditLogs || [])].slice(0, 150);
 
+    // Direct sync to Firebase products collection
+    syncSingleProductToFirebase(updated);
+
     onUpdateState({
       products: products.map(p => p.id === updated.id ? updated : p),
       auditLogs: updatedLogs
@@ -104,6 +112,9 @@ export default function AdminLayout({ state, onUpdateState, onBackToStore }: Adm
       user: "Admin"
     };
     const updatedLogs = [logEntry, ...(state.auditLogs || [])].slice(0, 150);
+
+    // Direct deletion from Firebase products collection
+    deleteSingleProductFromFirebase(id);
 
     onUpdateState({
       products: products.filter(p => p.id !== id),

@@ -1,10 +1,27 @@
 {
   "collections": {
-    "store_data": {
-      "documentId": "state",
+    "products": {
+      "documentId": "{productId}",
+      "fields": {
+        "id": "string",
+        "code": "string",
+        "name": "string",
+        "price": "number",
+        "cost": "number",
+        "image": "string",
+        "images": "array",
+        "categoryId": "string",
+        "sizes": "array",
+        "age": "string",
+        "status": "string",
+        "description": "string",
+        "createdAt": "string"
+      }
+    },
+    "store_config": {
+      "documentId": "general",
       "fields": {
         "adminPasscode": "string",
-        "products": "array",
         "categories": "array",
         "orders": "array",
         "transactions": "array",
@@ -15,8 +32,22 @@
         "avisos": "array",
         "landpage": "map",
         "printing": "map",
-        "live": "map"
+        "live": "map",
+        "pwa": "map",
+        "auditLogs": "array"
+      }
+    },
+    "store_data": {
+      "documentId": "state",
+      "fields": {
+        "adminPasscode": "string",
+        "products": "array",
+        "categories": "array",
+        "orders": "array",
+        "transactions": "array",
+        "landpage": "map"
       }
     }
   }
 }
+
