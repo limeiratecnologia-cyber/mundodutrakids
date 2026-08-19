@@ -35,10 +35,18 @@ export default function AdminPDV({ state, onAddOrder }: AdminPDVProps) {
   const displayedCategories = useMemo(() => {
     if (selectedSession === "todos") return categories;
     return categories.filter(c => {
-      const sec = c.section || c.gender || "ambos";
-      return sec === selectedSession || sec === "ambos" || sec === "unissex";
+      const sec = c.section || c.gender;
+      if (sec === selectedSession) return true;
+      if (!sec || sec === "ambos" || sec === "unissex") {
+        return products.some(p => 
+          p.status === "ativo" && 
+          ((p.gender || p.section || "menino") === selectedSession || (p.gender || p.section) === "unissex") &&
+          (p.categoryId === c.id || p.categoryId === c.name || categories.find(cat => cat.id === p.categoryId)?.name === c.name)
+        );
+      }
+      return false;
     });
-  }, [categories, selectedSession]);
+  }, [categories, selectedSession, products]);
 
   // Reset category if not in active session
   useEffect(() => {
@@ -55,7 +63,7 @@ export default function AdminPDV({ state, onAddOrder }: AdminPDVProps) {
 
       // Session matching
       if (selectedSession !== "todos") {
-        const prodGender = p.gender || p.section || "unissex";
+        const prodGender = p.gender || p.section || "menino";
         if (prodGender !== selectedSession && prodGender !== "unissex") {
           return false;
         }

@@ -252,10 +252,20 @@ export default function StoreFront({ state, onPlaceOrder, onBackToAdmin }: Store
   const displayedCategories = useMemo(() => {
     if (selectedSection === "todos") return categories;
     return categories.filter(c => {
-      const sec = c.section || c.gender || "ambos";
-      return sec === selectedSection || sec === "ambos" || sec === "unissex";
+      const sec = c.section || c.gender;
+      if (sec === selectedSection) return true;
+      if (!sec || sec === "ambos" || sec === "unissex") {
+        // Show shared or unassigned categories only if they have active products in the selected session
+        const hasProductsInSession = products.some(p => 
+          p.status === "ativo" && 
+          ((p.gender || p.section || "menino") === selectedSection || (p.gender || p.section) === "unissex") &&
+          (p.categoryId === c.id || p.categoryId === c.name || categories.find(cat => cat.id === p.categoryId)?.name === c.name)
+        );
+        return hasProductsInSession;
+      }
+      return false;
     });
-  }, [categories, selectedSection]);
+  }, [categories, selectedSection, products]);
 
   // Reset selected category if it does not belong to the newly active session
   useEffect(() => {
@@ -275,7 +285,7 @@ export default function StoreFront({ state, onPlaceOrder, onBackToAdmin }: Store
 
       // Section (Menino / Menina) matching
       if (selectedSection !== "todos") {
-        const prodGender = p.gender || p.section || "unissex";
+        const prodGender = p.gender || p.section || "menino";
         if (prodGender !== selectedSection && prodGender !== "unissex") {
           return false;
         }

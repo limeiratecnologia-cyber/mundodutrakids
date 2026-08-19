@@ -44,6 +44,16 @@ export default function AdminCategorias({ categories, onAddCategory, onEditCateg
     setIsFormOpen(true);
   };
 
+  const handleQuickChangeCategorySection = (cat: Category, newSec: "menino" | "menina" | "ambos") => {
+    const updated: Category = {
+      ...cat,
+      section: newSec,
+      gender: newSec
+    };
+    onEditCategory(updated);
+    triggerNotification(`Categoria "${cat.name}" vinculada à ${newSec === "menino" ? "Sessão Menino 👦" : newSec === "menina" ? "Sessão Menina 👧" : "Ambas as Sessões ✨"}!`);
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
@@ -296,6 +306,49 @@ export default function AdminCategorias({ categories, onAddCategory, onEditCateg
                 <p className="text-xs text-gray-500 mt-1 leading-relaxed line-clamp-2">
                   {cat.description || "Nenhuma descrição informada."}
                 </p>
+
+                {/* Quick 1-Click Session Switcher */}
+                <div className="bg-gray-50/90 p-2 rounded-xl border border-gray-200/80 my-3 flex flex-col gap-1.5">
+                  <span className="text-[9px] font-black uppercase text-gray-400">Vincular Categoria à Sessão:</span>
+                  <div className="grid grid-cols-3 gap-1">
+                    <button
+                      type="button"
+                      onClick={() => handleQuickChangeCategorySection(cat, "menino")}
+                      className={`text-[10px] font-black py-1.5 px-1 rounded-lg cursor-pointer transition text-center ${
+                        (cat.section || cat.gender) === "menino"
+                          ? "bg-blue-600 text-white shadow-xs"
+                          : "bg-white text-gray-600 hover:bg-blue-50 border border-gray-200"
+                      }`}
+                      title="Mostrar apenas na Sessão Menino"
+                    >
+                      👦 Menino
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleQuickChangeCategorySection(cat, "menina")}
+                      className={`text-[10px] font-black py-1.5 px-1 rounded-lg cursor-pointer transition text-center ${
+                        (cat.section || cat.gender) === "menina"
+                          ? "bg-pink-600 text-white shadow-xs"
+                          : "bg-white text-gray-600 hover:bg-pink-50 border border-gray-200"
+                      }`}
+                      title="Mostrar apenas na Sessão Menina"
+                    >
+                      👧 Menina
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleQuickChangeCategorySection(cat, "ambos")}
+                      className={`text-[10px] font-black py-1.5 px-1 rounded-lg cursor-pointer transition text-center ${
+                        (!cat.section || cat.section === "ambos" || cat.section === "unissex") && (!cat.gender || cat.gender === "ambos" || cat.gender === "unissex")
+                          ? "bg-amber-600 text-white shadow-xs"
+                          : "bg-white text-gray-600 hover:bg-amber-50 border border-gray-200"
+                      }`}
+                      title="Mostrar em Ambas as Sessões"
+                    >
+                      ✨ Ambas
+                    </button>
+                  </div>
+                </div>
               </div>
 
               <div className="flex gap-2 mt-4 pt-3 border-t border-gray-100 justify-end items-center min-h-[32px]">
