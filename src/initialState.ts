@@ -245,7 +245,15 @@ export const mergeWithDefaults = (parsed: any): SystemState => {
     // Ignore storage errors
   }
 
-  const categories = Array.isArray(parsed?.categories) && parsed.categories.length > 0 ? parsed.categories : defaults.categories;
+  const rawCategories = Array.isArray(parsed?.categories) && parsed.categories.length > 0 ? parsed.categories : defaults.categories;
+  const categories = rawCategories.map((c: any) => {
+    const sec = c.section || c.gender || "menino";
+    return {
+      ...c,
+      section: sec,
+      gender: sec
+    };
+  });
   const orders = Array.isArray(parsed?.orders) ? parsed.orders : defaults.orders;
   const transactions = Array.isArray(parsed?.transactions) ? parsed.transactions : defaults.transactions;
   const shippingNeighborhoods = Array.isArray(parsed?.shippingNeighborhoods) && parsed.shippingNeighborhoods.length > 0 ? parsed.shippingNeighborhoods : defaults.shippingNeighborhoods;

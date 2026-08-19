@@ -12,7 +12,7 @@ import {
   getDocFromServer
 } from "firebase/firestore";
 import { compressBase64Image } from "../utils/imageCompressor";
-import { Product, SystemState, Order } from "../types";
+import { Product, SystemState, Order, Category } from "../types";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCJaMqFkHxfuUk7dLnBE2md9WyGkNZ94do",
@@ -177,6 +177,29 @@ export async function deleteSingleProductFromFirebase(productId: string) {
   }
 }
 
+/**
+ * Saves categories directly into 'store_config/general' in Firestore immediately without delay
+ */
+export async function syncCategoriesToFirebase(categories: Category[]) {
+  try {
+    const sanitizedCategories = categories.map(c => {
+      const sec = c.section || c.gender || "menino";
+      return cleanUndefined({
+        id: c.id,
+        name: c.name,
+        description: c.description || "",
+        section: sec,
+        gender: sec
+      });
+    });
+    const docRef = doc(db, CONFIG_DOC_PATH);
+    await setDoc(docRef, { categories: sanitizedCategories }, { merge: true });
+    console.log(`[Firebase] Categories synced directly to cloud:`, sanitizedCategories);
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, CONFIG_DOC_PATH);
+  }
+}
+
 // Queue management for state synchronization to prevent write stream exhaustion
 let saveTimeout: any = null;
 let isSaving = false;
@@ -335,14 +358,23 @@ export async function getStateFromFirebase(): Promise<any | null> {
  * ensuring instant cross-device updates across iPhone, iPad, Android, and Desktop without write feedback loops.
  */
 export function listenToFirebaseState(onUpdate: (state: any) => void) {
-  let latestProducts: Product[] = [];
+  let latestProducts: Product[] | null = null;
   let latestConfig: any = {};
+  let initialConfigLoaded = false;
+  let initialProductsLoaded = false;
 
   const emitCombinedState = () => {
-    const combined = {
-      ...latestConfig,
-      products: latestProducts.length > 0 ? latestProducts : (latestConfig.products || [])
+    // Wait until both or at least one has delivered real data
+    if (!initialConfigLoaded && !initialProductsLoaded) return;
+
+    const combined: any = {
+      ...latestConfig
     };
+
+    if (latestProducts !== null && latestProducts.length > 0) {
+      combined.products = latestProducts;
+    }
+
     onUpdate(combined);
   };
 
@@ -350,6 +382,7 @@ export function listenToFirebaseState(onUpdate: (state: any) => void) {
   const unsubscribeProducts = onSnapshot(
     collection(db, PRODUCTS_COLLECTION),
     (snapshot) => {
+      initialProductsLoaded = true;
       const prods: Product[] = [];
       snapshot.forEach((doc) => {
         const raw = doc.data() as Product;
@@ -372,8 +405,21 @@ export function listenToFirebaseState(onUpdate: (state: any) => void) {
   const unsubscribeConfig = onSnapshot(
     doc(db, CONFIG_DOC_PATH),
     (docSnap) => {
+      initialConfigLoaded = true;
       if (docSnap.exists()) {
-        latestConfig = { ...latestConfig, ...docSnap.data() };
+        const data = docSnap.data();
+        let cats = data.categories;
+        if (Array.isArray(cats)) {
+          cats = cats.map((c: any) => {
+            const sec = c.section || c.gender || "menino";
+            return {
+              ...c,
+              section: sec,
+              gender: sec
+            };
+          });
+        }
+        latestConfig = { ...latestConfig, ...data, categories: cats || latestConfig.categories };
         emitCombinedState();
       }
     },

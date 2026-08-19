@@ -4,7 +4,7 @@ import {
   DollarSign, Store, Radio, BarChart3, ShieldCheck, Eye, LogOut, Menu, X 
 } from "lucide-react";
 import { SystemState, Product, Category, Transaction, Order, AuditLogEntry } from "../types";
-import { syncSingleProductToFirebase, deleteSingleProductFromFirebase } from "../lib/firebase";
+import { syncSingleProductToFirebase, deleteSingleProductFromFirebase, syncCategoriesToFirebase } from "../lib/firebase";
 
 // Inner views
 import AdminDashboard from "./AdminDashboard";
@@ -123,18 +123,24 @@ export default function AdminLayout({ state, onUpdateState, onBackToStore }: Adm
   };
 
   const handleAddCategory = (cat: Category) => {
-    onUpdateState({ categories: [...categories, cat] });
+    const updated = [...categories, cat];
+    syncCategoriesToFirebase(updated);
+    onUpdateState({ categories: updated });
   };
 
   const handleEditCategory = (updated: Category) => {
+    const updatedCategories = categories.map(c => c.id === updated.id ? updated : c);
+    syncCategoriesToFirebase(updatedCategories);
     onUpdateState({
-      categories: categories.map(c => c.id === updated.id ? updated : c)
+      categories: updatedCategories
     });
   };
 
   const handleDeleteCategory = (id: string) => {
+    const updatedCategories = categories.filter(c => c.id !== id);
+    syncCategoriesToFirebase(updatedCategories);
     onUpdateState({
-      categories: categories.filter(c => c.id !== id)
+      categories: updatedCategories
     });
   };
 

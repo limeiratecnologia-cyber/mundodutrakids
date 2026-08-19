@@ -63,9 +63,16 @@ export default function App() {
     const unsubscribe = listenToFirebaseState((firebaseState) => {
       if (firebaseState && ((Array.isArray(firebaseState.products) && firebaseState.products.length > 0) || Object.keys(firebaseState).length > 2)) {
         hasLoadedCloudData = true;
-        const merged = mergeWithDefaults(firebaseState);
-        setState(merged);
-        saveState(merged); // Cache locally for offline backup
+        setState((prevState) => {
+          const merged = mergeWithDefaults({
+            ...prevState,
+            ...firebaseState,
+            products: Array.isArray(firebaseState.products) && firebaseState.products.length > 0 ? firebaseState.products : prevState.products,
+            categories: Array.isArray(firebaseState.categories) && firebaseState.categories.length > 0 ? firebaseState.categories : prevState.categories,
+          });
+          saveState(merged); // Cache locally for offline backup
+          return merged;
+        });
       }
       setLoading(false);
     });
