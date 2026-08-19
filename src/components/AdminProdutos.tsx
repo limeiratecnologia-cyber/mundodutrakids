@@ -135,7 +135,7 @@ export default function AdminProdutos({ products, categories, onAddProduct, onEd
 
   // Section Counts
   const countMenino = useMemo(() => {
-    return products.filter(p => (p.gender || p.section) === "menino").length;
+    return products.filter(p => (p.gender || p.section || "menino") === "menino").length;
   }, [products]);
 
   const countMenina = useMemo(() => {
@@ -143,20 +143,19 @@ export default function AdminProdutos({ products, categories, onAddProduct, onEd
   }, [products]);
 
   const countUnissex = useMemo(() => {
-    return products.filter(p => (p.gender || p.section) === "unissex" || (!p.gender && !p.section)).length;
+    return products.filter(p => (p.gender || p.section) === "unissex").length;
   }, [products]);
 
   // Filtered Products for Admin
   const filteredProducts = useMemo(() => {
     return products.filter((prod) => {
+      const prodGender = prod.gender || prod.section || "menino";
+
       // Session filter
       if (adminSectionFilter !== "all") {
-        const prodGender = prod.gender || prod.section || "unissex";
-        if (adminSectionFilter === "unissex") {
-          if (prodGender !== "unissex") return false;
-        } else {
-          if (prodGender !== adminSectionFilter && prodGender !== "unissex") return false;
-        }
+        if (adminSectionFilter === "menino" && prodGender !== "menino") return false;
+        if (adminSectionFilter === "menina" && prodGender !== "menina") return false;
+        if (adminSectionFilter === "unissex" && prodGender !== "unissex") return false;
       }
 
       // Search filter
@@ -463,6 +462,8 @@ export default function AdminProdutos({ products, categories, onAddProduct, onEd
     const finalImage = (image && image.trim()) || (images.length > 0 ? images[0] : defaultFallbackImg);
     const finalImages = images.length > 0 ? images : [finalImage];
 
+    const finalGender = (gender || "menino") as "menino" | "menina" | "unissex";
+
     if (editingProduct) {
       const updated: Product = {
         ...editingProduct,
@@ -472,8 +473,8 @@ export default function AdminProdutos({ products, categories, onAddProduct, onEd
         image: finalImage,
         images: finalImages,
         categoryId: selectedCategoryId,
-        gender,
-        section: gender,
+        gender: finalGender,
+        section: finalGender,
         age: age || "Livre / Todos",
         description: description || `Vestuário infantil ${name.trim()} com excelente acabamento e alto conforto.`,
         status,
@@ -491,8 +492,8 @@ export default function AdminProdutos({ products, categories, onAddProduct, onEd
         image: finalImage,
         images: finalImages,
         categoryId: selectedCategoryId,
-        gender,
-        section: gender,
+        gender: finalGender,
+        section: finalGender,
         age: age || "Livre / Todos",
         description: description || `Vestuário infantil ${name.trim()} com excelente acabamento e alto conforto.`,
         status,
@@ -1162,7 +1163,7 @@ export default function AdminProdutos({ products, categories, onAddProduct, onEd
           {filteredProducts.map((prod) => {
             const totalStock = prod.sizes.reduce((s, x) => s + x.stock, 0);
             const isInactive = prod.status === "inativo";
-            const prodGender = prod.gender || prod.section || "unissex";
+            const prodGender = prod.gender || prod.section || "menino";
 
             return (
               <div
