@@ -241,11 +241,11 @@ export default function StoreFront({ state, onPlaceOrder, onBackToAdmin }: Store
 
   // Session counts
   const storeCountMenino = useMemo(() => {
-    return products.filter(p => p.status === "ativo" && ((p.gender || p.section) === "menino" || (p.gender || p.section) === "unissex" || (!p.gender && !p.section))).length;
+    return products.filter(p => p.status === "ativo" && ((p.gender || p.section) === "menino" || (p.gender || p.section) === "unissex")).length;
   }, [products]);
 
   const storeCountMenina = useMemo(() => {
-    return products.filter(p => p.status === "ativo" && ((p.gender || p.section) === "menina" || (p.gender || p.section) === "unissex" || (!p.gender && !p.section))).length;
+    return products.filter(p => p.status === "ativo" && ((p.gender || p.section) === "menina" || (p.gender || p.section) === "unissex")).length;
   }, [products]);
 
   // Categories displayed based on the active session (Menino, Menina, Todos)

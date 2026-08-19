@@ -2,7 +2,8 @@ import React, { useState, useMemo } from "react";
 import { motion } from "motion/react";
 import { 
   Plus, Edit, Trash2, Camera, Sparkles, RefreshCw, 
-  Tag, ListPlus, ToggleLeft, ToggleRight, Check, AlertCircle, X 
+  Tag, ListPlus, ToggleLeft, ToggleRight, Check, AlertCircle, X,
+  GripVertical, ChevronUp, ChevronDown, ArrowUpDown
 } from "lucide-react";
 import { Product, Category } from "../types";
 import { compressImage } from "../utils/imageCompressor";
@@ -353,6 +354,16 @@ export default function AdminProdutos({ products, categories, onAddProduct, onEd
     setIsFormOpen(true);
   };
 
+  const handleQuickChangeSession = (prod: Product, newSession: "menino" | "menina" | "unissex") => {
+    const updated: Product = {
+      ...prod,
+      gender: newSession,
+      section: newSession
+    };
+    onEditProduct(updated);
+    triggerNotification(`Sessão do produto alterada para ${newSession === "menino" ? "Menino 👦" : newSession === "menina" ? "Menina 👧" : "Ambos / Unissex ✨"}!`);
+  };
+
   const handleAddSizeOption = () => {
     if (!newSizeName.trim()) return;
     const sizeUpper = newSizeName.trim().toUpperCase();
@@ -386,6 +397,50 @@ export default function AdminProdutos({ products, categories, onAddProduct, onEd
     const updated = [...sizeGrid];
     updated[idx].stock = Math.max(0, stock);
     setSizeGrid(updated);
+  };
+
+  // Reorder size items up or down
+  const handleMoveSize = (fromIndex: number, toIndex: number) => {
+    if (toIndex < 0 || toIndex >= sizeGrid.length || fromIndex === toIndex) return;
+    const updated = [...sizeGrid];
+    const [movedItem] = updated.splice(fromIndex, 1);
+    updated.splice(toIndex, 0, movedItem);
+    setSizeGrid(updated);
+  };
+
+  // Drag and drop state and handlers for sizes
+  const [draggedSizeIndex, setDraggedSizeIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    setDraggedSizeIndex(index);
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", index.toString());
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    if (dragOverIndex !== index) {
+      setDragOverIndex(index);
+    }
+  };
+
+  const handleDragEnd = () => {
+    setDraggedSizeIndex(null);
+    setDragOverIndex(null);
+  };
+
+  const handleDrop = (e: React.DragEvent, dropIndex: number) => {
+    e.preventDefault();
+    if (draggedSizeIndex === null || draggedSizeIndex === dropIndex) {
+      setDraggedSizeIndex(null);
+      setDragOverIndex(null);
+      return;
+    }
+    handleMoveSize(draggedSizeIndex, dropIndex);
+    setDraggedSizeIndex(null);
+    setDragOverIndex(null);
   };
 
   const handleSubmitForm = (e: React.FormEvent) => {
@@ -793,48 +848,106 @@ export default function AdminProdutos({ products, categories, onAddProduct, onEd
                   </div>             </div>
 
                   {/* Size Options Grid Stock */}
-                  <div className="space-y-2.5 bg-[#fbfbfa] p-3 rounded-2xl border border-[#e0e0d6]/70">
-                    <span className="text-[10px] uppercase font-bold text-gray-500 block">Grade de Tamanhos & Estoque:</span>
+                  <div className="space-y-2.5 bg-[#fbfbfa] p-3.5 rounded-2xl border border-[#e0e0d6]/80">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] uppercase font-black text-gray-600 tracking-wider flex items-center gap-1.5">
+                        <ArrowUpDown className="w-3 h-3 text-[#5A5A40]" /> Grade de Tamanhos & Estoque:
+                      </span>
+                      <span className="text-[9px] text-gray-400 font-medium">
+                        Arraste ⠿ ou use 🔼🔽
+                      </span>
+                    </div>
                     
-                    <div className="max-h-36 overflow-y-auto space-y-1 pr-1">
-                      {sizeGrid.map((sz, idx) => (
-                        <div key={idx} className="flex items-center justify-between bg-white px-2.5 py-1.5 rounded-lg border border-gray-100 text-xs">
-                          <div className="flex items-center gap-2">
-                            {sz.colorHex && (
-                              <span 
-                                className="w-3.5 h-3.5 rounded-full border border-black/15 inline-block shadow-xs shrink-0" 
-                                style={{ backgroundColor: sz.colorHex }}
-                                title={sz.color}
+                    <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1 no-scrollbar">
+                      {sizeGrid.map((sz, idx) => {
+                        const isBeingDragged = draggedSizeIndex === idx;
+                        const isDragTarget = dragOverIndex === idx && draggedSizeIndex !== idx;
+
+                        return (
+                          <div 
+                            key={`${sz.size}-${sz.color || ""}-${idx}`}
+                            draggable
+                            onDragStart={(e) => handleDragStart(e, idx)}
+                            onDragOver={(e) => handleDragOver(e, idx)}
+                            onDragEnd={handleDragEnd}
+                            onDrop={(e) => handleDrop(e, idx)}
+                            className={`flex items-center justify-between bg-white px-2 py-1.5 rounded-xl border transition-all select-none ${
+                              isBeingDragged 
+                                ? "opacity-40 border-dashed border-[#5A5A40] bg-gray-100" 
+                                : isDragTarget
+                                ? "border-2 border-[#5A5A40] bg-[#5A5A40]/10 scale-[1.01] shadow-xs"
+                                : "border-gray-200/80 hover:border-gray-300 shadow-3xs"
+                            }`}
+                          >
+                            {/* Drag handle & Up/Down quick buttons */}
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <div 
+                                className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-700 p-0.5 rounded touch-none shrink-0"
+                                title="Arraste para mudar a posição"
+                              >
+                                <GripVertical className="w-3.5 h-3.5" />
+                              </div>
+
+                              {/* Quick Reorder Arrows */}
+                              <div className="flex flex-col shrink-0">
+                                <button
+                                  type="button"
+                                  disabled={idx === 0}
+                                  onClick={() => handleMoveSize(idx, idx - 1)}
+                                  className="text-gray-400 hover:text-gray-800 disabled:opacity-20 disabled:hover:text-gray-400 p-0.5 rounded transition cursor-pointer"
+                                  title="Mover para cima"
+                                >
+                                  <ChevronUp className="w-2.5 h-2.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={idx === sizeGrid.length - 1}
+                                  onClick={() => handleMoveSize(idx, idx + 1)}
+                                  className="text-gray-400 hover:text-gray-800 disabled:opacity-20 disabled:hover:text-gray-400 p-0.5 rounded transition cursor-pointer"
+                                  title="Mover para baixo"
+                                >
+                                  <ChevronDown className="w-2.5 h-2.5" />
+                                </button>
+                              </div>
+
+                              {sz.colorHex && (
+                                <span 
+                                  className="w-3.5 h-3.5 rounded-full border border-black/15 inline-block shadow-3xs shrink-0" 
+                                  style={{ backgroundColor: sz.colorHex }}
+                                  title={sz.color}
+                                />
+                              )}
+                              <span className="font-bold text-gray-800 text-xs truncate">{sz.size}</span>
+                              {sz.color && (
+                                <span className="text-[9px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded truncate max-w-[70px]">
+                                  {sz.color}
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Stock & Delete */}
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <span className="text-[10px] text-gray-400 font-medium">Estoque:</span>
+                              <input
+                                type="number"
+                                inputMode="numeric"
+                                value={sz.stock === 0 ? "" : sz.stock}
+                                onFocus={(e) => e.target.select()}
+                                onChange={(e) => handleUpdateSizeStock(idx, parseInt(e.target.value, 10) || 0)}
+                                className="w-11 text-center py-0.5 border border-gray-200 rounded-lg text-xs font-mono font-bold bg-gray-50/60 focus:bg-white focus:outline-none focus:border-[#5A5A40]"
                               />
-                            )}
-                            <span className="font-bold text-gray-700">{sz.size}</span>
-                            {sz.color && (
-                              <span className="text-[9px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded truncate max-w-[80px]">
-                                {sz.color}
-                              </span>
-                            )}
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveSizeOption(idx)}
+                                className="text-red-400 hover:text-red-600 hover:bg-red-50 p-1 rounded-md transition cursor-pointer"
+                                title="Remover tamanho"
+                              >
+                                <X className="w-3.5 h-3.5 font-bold" />
+                              </button>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-[10px] text-gray-400">Estoque:</span>
-                            <input
-                              type="number"
-                              inputMode="numeric"
-                              value={sz.stock === 0 ? "" : sz.stock}
-                              onFocus={(e) => e.target.select()}
-                              onChange={(e) => handleUpdateSizeStock(idx, parseInt(e.target.value, 10) || 0)}
-                              className="w-12 text-center p-0.5 border border-gray-200 rounded text-xs font-mono font-bold"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveSizeOption(idx)}
-                              className="text-red-400 hover:text-red-600 hover:bg-red-50 p-1 rounded transition"
-                              title="Remover tamanho"
-                            >
-                              <X className="w-3.5 h-3.5 font-bold" />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
 
                     <div className="space-y-2 pt-2 border-t border-gray-100">
@@ -1124,6 +1237,43 @@ export default function AdminProdutos({ products, categories, onAddProduct, onEd
                     <h4 className={`font-extrabold text-sm text-gray-900 ${isInactive ? "line-through text-red-700" : ""}`}>
                       {prod.name}
                     </h4>
+                  </div>
+
+                  {/* Quick Session Switcher directly on Card */}
+                  <div className="bg-gray-50/90 p-1.5 rounded-xl border border-gray-200/80 flex items-center justify-between gap-1">
+                    <span className="text-[8px] font-black uppercase text-gray-400">Sessão:</span>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => handleQuickChangeSession(prod, "menino")}
+                        className={`text-[9px] font-black px-1.5 py-0.5 rounded cursor-pointer transition ${
+                          prodGender === "menino" ? "bg-blue-600 text-white shadow-xs" : "bg-white text-gray-600 hover:bg-blue-50 border border-gray-200"
+                        }`}
+                        title="Mover para Menino"
+                      >
+                        👦 Menino
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleQuickChangeSession(prod, "menina")}
+                        className={`text-[9px] font-black px-1.5 py-0.5 rounded cursor-pointer transition ${
+                          prodGender === "menina" ? "bg-pink-600 text-white shadow-xs" : "bg-white text-gray-600 hover:bg-pink-50 border border-gray-200"
+                        }`}
+                        title="Mover para Menina"
+                      >
+                        👧 Menina
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleQuickChangeSession(prod, "unissex")}
+                        className={`text-[9px] font-black px-1.5 py-0.5 rounded cursor-pointer transition ${
+                          prodGender === "unissex" ? "bg-amber-600 text-white shadow-xs" : "bg-white text-gray-600 hover:bg-amber-50 border border-gray-200"
+                        }`}
+                        title="Mover para Ambos / Unissex"
+                      >
+                        ✨ Ambos
+                      </button>
+                    </div>
                   </div>
 
                   {/* Size Stock grid preview */}

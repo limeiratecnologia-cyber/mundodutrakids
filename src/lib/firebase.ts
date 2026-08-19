@@ -138,12 +138,15 @@ export async function sanitizeProductForCloud(product: Product): Promise<Product
 
   const uniqueImgs = Array.from(new Set([mainImg, ...processedImgs])).filter(Boolean);
 
+  // Preserve explicit gender / section choice, default to 'menino' rather than unissex if blank
+  const sessionValue = product.gender || product.section || "menino";
+
   return cleanUndefined({
     ...product,
     image: mainImg,
     images: uniqueImgs.slice(0, 8),
-    gender: product.gender || product.section || "unissex",
-    section: product.section || product.gender || "unissex"
+    gender: sessionValue,
+    section: sessionValue
   });
 }
 
@@ -154,8 +157,8 @@ export async function syncSingleProductToFirebase(product: Product) {
   try {
     const sanitized = await sanitizeProductForCloud(product);
     const docRef = doc(db, PRODUCTS_COLLECTION, sanitized.id);
-    await setDoc(docRef, sanitized, { merge: true });
-    console.log(`[Firebase] Product ${product.id} synced directly.`);
+    await setDoc(docRef, sanitized);
+    console.log(`[Firebase] Product ${product.id} synced directly (session: ${sanitized.gender}).`);
   } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, `${PRODUCTS_COLLECTION}/${product.id}`);
   }
@@ -201,7 +204,7 @@ async function performBatchedStateSave(state: any) {
         if (!p || !p.id) continue;
         const sanitized = await sanitizeProductForCloud(p);
         const prodDocRef = doc(db, PRODUCTS_COLLECTION, sanitized.id);
-        batch.set(prodDocRef, sanitized, { merge: true });
+        batch.set(prodDocRef, sanitized);
       }
 
       await batch.commit();
@@ -349,7 +352,13 @@ export function listenToFirebaseState(onUpdate: (state: any) => void) {
     (snapshot) => {
       const prods: Product[] = [];
       snapshot.forEach((doc) => {
-        prods.push(doc.data() as Product);
+        const raw = doc.data() as Product;
+        const session = raw.gender || raw.section || "menino";
+        prods.push({
+          ...raw,
+          gender: session,
+          section: session
+        });
       });
       latestProducts = prods;
       emitCombinedState();

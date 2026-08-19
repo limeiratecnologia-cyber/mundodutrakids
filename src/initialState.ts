@@ -224,7 +224,15 @@ export const getDefaultState = (): SystemState => {
 export const mergeWithDefaults = (parsed: any): SystemState => {
   const defaults = getDefaultState();
 
-  const products = Array.isArray(parsed?.products) ? parsed.products : defaults.products;
+  const rawProducts = Array.isArray(parsed?.products) ? parsed.products : defaults.products;
+  const products = rawProducts.map((p: any) => {
+    const session = p.gender || p.section || "menino";
+    return {
+      ...p,
+      gender: session,
+      section: session
+    };
+  });
 
   // Cache products locally for offline support without overriding Cloud state
   try {
