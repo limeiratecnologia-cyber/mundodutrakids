@@ -224,7 +224,7 @@ export const getDefaultState = (): SystemState => {
 export const mergeWithDefaults = (parsed: any): SystemState => {
   const defaults = getDefaultState();
 
-  const rawProducts = Array.isArray(parsed?.products) ? parsed.products : defaults.products;
+  const rawProducts = Array.isArray(parsed?.products) && parsed.products.length > 0 ? parsed.products : defaults.products;
   const products = rawProducts.map((p: any) => {
     const session = p.gender || p.section || "menino";
     return {

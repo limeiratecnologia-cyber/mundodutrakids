@@ -157,7 +157,7 @@ export async function syncSingleProductToFirebase(product: Product) {
   try {
     const sanitized = await sanitizeProductForCloud(product);
     const docRef = doc(db, PRODUCTS_COLLECTION, sanitized.id);
-    await setDoc(docRef, sanitized);
+    await setDoc(docRef, sanitized, { merge: true });
     console.log(`[Firebase] Product ${product.id} synced directly (session: ${sanitized.gender}).`);
   } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, `${PRODUCTS_COLLECTION}/${product.id}`);
@@ -227,7 +227,7 @@ async function performBatchedStateSave(state: any) {
         if (!p || !p.id) continue;
         const sanitized = await sanitizeProductForCloud(p);
         const prodDocRef = doc(db, PRODUCTS_COLLECTION, sanitized.id);
-        batch.set(prodDocRef, sanitized);
+        batch.set(prodDocRef, sanitized, { merge: true });
       }
 
       await batch.commit();
@@ -371,8 +371,11 @@ export function listenToFirebaseState(onUpdate: (state: any) => void) {
       ...latestConfig
     };
 
+    // Strict Rule: Products come ONLY from the dedicated 'products' collection in Firestore
     if (latestProducts !== null && latestProducts.length > 0) {
       combined.products = latestProducts;
+    } else {
+      delete combined.products;
     }
 
     onUpdate(combined);
@@ -407,7 +410,11 @@ export function listenToFirebaseState(onUpdate: (state: any) => void) {
     (docSnap) => {
       initialConfigLoaded = true;
       if (docSnap.exists()) {
-        const data = docSnap.data();
+        const data = { ...docSnap.data() };
+        
+        // CRITICAL: Delete any legacy products embedded in config doc so it never overwrites the actual products collection
+        delete data.products;
+
         let cats = data.categories;
         if (Array.isArray(cats)) {
           cats = cats.map((c: any) => {
