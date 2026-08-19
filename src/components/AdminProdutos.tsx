@@ -77,9 +77,14 @@ export default function AdminProdutos({ products, categories, onAddProduct, onEd
   const [image, setImage] = useState("");
   const [images, setImages] = useState<string[]>([]);
   const [categoryId, setCategoryId] = useState("");
+  const [gender, setGender] = useState<"menino" | "menina" | "unissex">("menino");
   const [age, setAge] = useState("");
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState<"ativo" | "inativo">("ativo");
+
+  // Admin list filters
+  const [adminSectionFilter, setAdminSectionFilter] = useState<"all" | "menino" | "menina" | "unissex">("all");
+  const [adminSearch, setAdminSearch] = useState("");
   
   const PALETTE_COLORS = [
     { name: "Rosa Bebê", hex: "#FFC8D6" },
@@ -126,6 +131,47 @@ export default function AdminProdutos({ products, categories, onAddProduct, onEd
     const nextNum = max + 1;
     return `P${nextNum.toString().padStart(4, "0")}`;
   }, [products]);
+
+  // Section Counts
+  const countMenino = useMemo(() => {
+    return products.filter(p => (p.gender || p.section) === "menino").length;
+  }, [products]);
+
+  const countMenina = useMemo(() => {
+    return products.filter(p => (p.gender || p.section) === "menina").length;
+  }, [products]);
+
+  const countUnissex = useMemo(() => {
+    return products.filter(p => (p.gender || p.section) === "unissex" || (!p.gender && !p.section)).length;
+  }, [products]);
+
+  // Filtered Products for Admin
+  const filteredProducts = useMemo(() => {
+    return products.filter((prod) => {
+      // Session filter
+      if (adminSectionFilter !== "all") {
+        const prodGender = prod.gender || prod.section || "unissex";
+        if (adminSectionFilter === "unissex") {
+          if (prodGender !== "unissex") return false;
+        } else {
+          if (prodGender !== adminSectionFilter && prodGender !== "unissex") return false;
+        }
+      }
+
+      // Search filter
+      if (adminSearch.trim() !== "") {
+        const q = adminSearch.toLowerCase();
+        const matchesName = prod.name.toLowerCase().includes(q);
+        const matchesCode = prod.code.toLowerCase().includes(q);
+        const matchesAge = prod.age.toLowerCase().includes(q);
+        const cat = categories.find(c => c.id === prod.categoryId || c.name === prod.categoryId);
+        const matchesCat = cat ? cat.name.toLowerCase().includes(q) : false;
+        return matchesName || matchesCode || matchesAge || matchesCat;
+      }
+
+      return true;
+    });
+  }, [products, adminSectionFilter, adminSearch, categories]);
 
   // Base64 file converter for main image (with compression)
   const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -265,6 +311,8 @@ export default function AdminProdutos({ products, categories, onAddProduct, onEd
     setImage("https://images.unsplash.com/photo-1519457431-44ccd64a579b?q=80&w=400");
     setImages(["https://images.unsplash.com/photo-1519457431-44ccd64a579b?q=80&w=400"]);
     setCategoryId(categories[0]?.id || "");
+    // Default to the current filtered session if active, otherwise 'menino'
+    setGender(adminSectionFilter === "all" ? "menino" : adminSectionFilter);
     setAge("Livre / Todos");
     setDescription("");
     setStatus("ativo");
@@ -293,6 +341,8 @@ export default function AdminProdutos({ products, categories, onAddProduct, onEd
     const matchedCategory = categories.find(c => c.id === prod.categoryId || c.name === prod.categoryId);
     setCategoryId(matchedCategory ? matchedCategory.id : (prod.categoryId || categories[0]?.id || ""));
     
+    // Set gender session
+    setGender(prod.gender || prod.section || "menino");
     setAge(prod.age);
     setDescription(prod.description);
     setStatus(prod.status);
@@ -367,6 +417,8 @@ export default function AdminProdutos({ products, categories, onAddProduct, onEd
         image: finalImage,
         images: finalImages,
         categoryId: selectedCategoryId,
+        gender,
+        section: gender,
         age: age || "Livre / Todos",
         description: description || `Vestuário infantil ${name.trim()} com excelente acabamento e alto conforto.`,
         status,
@@ -384,6 +436,8 @@ export default function AdminProdutos({ products, categories, onAddProduct, onEd
         image: finalImage,
         images: finalImages,
         categoryId: selectedCategoryId,
+        gender,
+        section: gender,
         age: age || "Livre / Todos",
         description: description || `Vestuário infantil ${name.trim()} com excelente acabamento e alto conforto.`,
         status,
@@ -521,7 +575,7 @@ export default function AdminProdutos({ products, categories, onAddProduct, onEd
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-[10px] uppercase font-bold text-gray-500 mb-1">Categoria *</label>
+                      <label className="block text-[10px] uppercase font-bold text-gray-500 mb-1">Categoria do Produto *</label>
                       <select
                         value={categoryId}
                         required
@@ -529,9 +583,39 @@ export default function AdminProdutos({ products, categories, onAddProduct, onEd
                         className="w-full px-3 py-2.5 text-xs bg-gray-50 border border-[#e0e0d6] rounded-xl focus:outline-none focus:border-[#5A5A40] text-gray-800 font-semibold cursor-pointer"
                       >
                         <option value="">-- Selecione uma Categoria --</option>
-                        {categories.map(c => (
-                          <option key={c.id} value={c.id}>{c.name}</option>
-                        ))}
+                        {categories.filter(c => (c.section || c.gender) === gender).length > 0 && (
+                          <optgroup label={gender === "menino" ? "👦 Categorias Sessão Menino" : gender === "menina" ? "👧 Categorias Sessão Menina" : "✨ Categorias Unissex"}>
+                            {categories.filter(c => (c.section || c.gender) === gender).map(c => (
+                              <option key={c.id} value={c.id}>{c.name}</option>
+                            ))}
+                          </optgroup>
+                        )}
+                        {categories.filter(c => {
+                          const sec = c.section || c.gender;
+                          return sec === "ambos" || sec === "unissex" || !sec;
+                        }).filter(c => (c.section || c.gender) !== gender).length > 0 && (
+                          <optgroup label="✨ Categorias Compartilhadas (Ambos / Geral)">
+                            {categories.filter(c => {
+                              const sec = c.section || c.gender;
+                              return (sec === "ambos" || sec === "unissex" || !sec) && sec !== gender;
+                            }).map(c => (
+                              <option key={c.id} value={c.id}>{c.name}</option>
+                            ))}
+                          </optgroup>
+                        )}
+                        {categories.filter(c => {
+                          const sec = c.section || c.gender;
+                          return sec && sec !== gender && sec !== "ambos" && sec !== "unissex";
+                        }).length > 0 && (
+                          <optgroup label="Outras Categorias">
+                            {categories.filter(c => {
+                              const sec = c.section || c.gender;
+                              return sec && sec !== gender && sec !== "ambos" && sec !== "unissex";
+                            }).map(c => (
+                              <option key={c.id} value={c.id}>{c.name}</option>
+                            ))}
+                          </optgroup>
+                        )}
                       </select>
                     </div>
                     <div>
@@ -541,8 +625,59 @@ export default function AdminProdutos({ products, categories, onAddProduct, onEd
                         placeholder="Ex: 2 a 4 anos"
                         value={age}
                         onChange={(e) => setAge(e.target.value)}
-                        className="w-full px-3 py-2 text-xs bg-gray-50 border border-[#e0e0d6] rounded-xl focus:outline-none"
+                        className="w-full px-3 py-2.5 text-xs bg-gray-50 border border-[#e0e0d6] rounded-xl focus:outline-none"
                       />
+                    </div>
+                  </div>
+
+                  {/* Sessão do Produto (Menino / Menina / Unissex) */}
+                  <div className="bg-[#fcfcfa] p-3 rounded-2xl border border-[#e0e0d6]">
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="block text-[10px] uppercase font-black text-gray-700 tracking-wider">
+                        🎯 Sessão da Loja * (Onde o produto será exibido)
+                      </label>
+                      <span className="text-[9px] text-gray-400 font-medium">Define a aba do catálogo</span>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setGender("menino")}
+                        className={`py-2.5 px-2 rounded-xl text-xs font-extrabold flex flex-col items-center justify-center gap-1 border transition-all cursor-pointer ${
+                          gender === "menino"
+                            ? "bg-blue-50 text-blue-800 border-blue-400 shadow-xs ring-2 ring-blue-300 scale-[1.02]"
+                            : "bg-white text-gray-600 border-gray-200 hover:bg-blue-50/50 hover:border-blue-200"
+                        }`}
+                      >
+                        <span className="text-base">👦</span>
+                        <span>MENINO</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setGender("menina")}
+                        className={`py-2.5 px-2 rounded-xl text-xs font-extrabold flex flex-col items-center justify-center gap-1 border transition-all cursor-pointer ${
+                          gender === "menina"
+                            ? "bg-pink-50 text-pink-800 border-pink-400 shadow-xs ring-2 ring-pink-300 scale-[1.02]"
+                            : "bg-white text-gray-600 border-gray-200 hover:bg-pink-50/50 hover:border-pink-200"
+                        }`}
+                      >
+                        <span className="text-base">👧</span>
+                        <span>MENINA</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setGender("unissex")}
+                        className={`py-2.5 px-2 rounded-xl text-xs font-extrabold flex flex-col items-center justify-center gap-1 border transition-all cursor-pointer ${
+                          gender === "unissex"
+                            ? "bg-amber-50 text-amber-800 border-amber-400 shadow-xs ring-2 ring-amber-300 scale-[1.02]"
+                            : "bg-white text-gray-600 border-gray-200 hover:bg-amber-50/50 hover:border-amber-200"
+                        }`}
+                      >
+                        <span className="text-base">✨</span>
+                        <span>AMBOS / UNISSEX</span>
+                      </button>
                     </div>
                   </div>
 
@@ -837,125 +972,233 @@ export default function AdminProdutos({ products, categories, onAddProduct, onEd
         </div>
       )}
 
+      {/* Session Filter Bar & Search */}
+      <div className="bg-white p-4 rounded-2xl border border-[#e0e0d6] shadow-sm flex flex-col sm:flex-row gap-3 justify-between items-stretch sm:items-center">
+        <div className="flex flex-wrap gap-1.5 items-center">
+          <span className="text-[10px] uppercase font-black text-gray-400 mr-1 hidden sm:inline">Filtrar Sessão:</span>
+          
+          <button
+            type="button"
+            onClick={() => setAdminSectionFilter("all")}
+            className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition flex items-center gap-1.5 cursor-pointer ${
+              adminSectionFilter === "all"
+                ? "bg-[#5A5A40] text-white shadow-xs"
+                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+            }`}
+          >
+            🧸 Todos ({products.length})
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setAdminSectionFilter("menino")}
+            className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition flex items-center gap-1.5 cursor-pointer ${
+              adminSectionFilter === "menino"
+                ? "bg-blue-600 text-white shadow-xs"
+                : "bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200"
+            }`}
+          >
+            👦 Menino ({countMenino})
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setAdminSectionFilter("menina")}
+            className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition flex items-center gap-1.5 cursor-pointer ${
+              adminSectionFilter === "menina"
+                ? "bg-pink-600 text-white shadow-xs"
+                : "bg-pink-50 text-pink-700 hover:bg-pink-100 border border-pink-200"
+            }`}
+          >
+            👧 Menina ({countMenina})
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setAdminSectionFilter("unissex")}
+            className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition flex items-center gap-1.5 cursor-pointer ${
+              adminSectionFilter === "unissex"
+                ? "bg-amber-600 text-white shadow-xs"
+                : "bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200"
+            }`}
+          >
+            ✨ Unissex ({countUnissex})
+          </button>
+        </div>
+
+        {/* Quick search */}
+        <div className="sm:w-64">
+          <input
+            type="text"
+            placeholder="Buscar produto por nome/código..."
+            value={adminSearch}
+            onChange={(e) => setAdminSearch(e.target.value)}
+            className="w-full px-3 py-1.5 text-xs bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:border-[#5A5A40]"
+          />
+        </div>
+      </div>
+
       {/* Products Grid list */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        {products.map((prod) => {
-          const totalStock = prod.sizes.reduce((s, x) => s + x.stock, 0);
-          const isInactive = prod.status === "inativo";
+      {filteredProducts.length === 0 ? (
+        <div className="bg-white rounded-3xl border border-[#e0e0d6] p-12 text-center">
+          <p className="text-sm font-bold text-gray-700">Nenhum produto encontrado nesta sessão ou filtro.</p>
+          <p className="text-xs text-gray-400 mt-1">Experimente mudar o filtro de sessão ou cadastrar um novo produto.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          {filteredProducts.map((prod) => {
+            const totalStock = prod.sizes.reduce((s, x) => s + x.stock, 0);
+            const isInactive = prod.status === "inativo";
+            const prodGender = prod.gender || prod.section || "unissex";
 
-          return (
-            <div
-              key={prod.id}
-              className={`rounded-2xl border transition shadow-sm overflow-hidden flex flex-col justify-between ${
-                isInactive 
-                  ? "bg-[#ffebeb] border-red-200 opacity-80" 
-                  : "bg-white border-[#e0e0d6]"
-              }`}
-            >
-              {/* Product top image area */}
-              <div className="aspect-[16/11] relative bg-[#f9f9f5] flex items-center justify-center p-2">
-                <img src={prod.image} className="max-w-full max-h-full object-contain" alt="" />
-                
-                {/* Code sequential badge */}
-                <span className="absolute top-2 left-2 bg-black/60 text-white text-[9px] font-mono px-2 py-0.5 rounded">
-                  {prod.code}
-                </span>
-
-                {/* Status tag */}
-                {isInactive ? (
-                  <span className="absolute top-2 right-2 bg-red-600 text-white text-[9px] font-extrabold uppercase px-2 py-0.5 rounded shadow">
-                    INATIVO
+            return (
+              <div
+                key={prod.id}
+                className={`rounded-2xl border transition shadow-sm overflow-hidden flex flex-col justify-between ${
+                  isInactive 
+                    ? "bg-[#ffebeb] border-red-200 opacity-80" 
+                    : "bg-white border-[#e0e0d6]"
+                }`}
+              >
+                {/* Product top image area */}
+                <div className="aspect-[16/11] relative bg-[#f9f9f5] flex items-center justify-center p-2">
+                  <img src={prod.image} className="max-w-full max-h-full object-contain" alt="" />
+                  
+                  {/* Code sequential badge */}
+                  <span className="absolute top-2 left-2 bg-black/60 text-white text-[9px] font-mono px-2 py-0.5 rounded">
+                    {prod.code}
                   </span>
-                ) : (
-                  <span className="absolute top-2 right-2 bg-green-600 text-white text-[9px] font-bold px-2 py-0.5 rounded shadow">
-                    ATIVO
-                  </span>
-                )}
-              </div>
 
-              {/* Product Details body */}
-              <div className="p-3.5 flex-1 flex flex-col justify-between space-y-3">
-                <div>
-                  <h4 className={`font-extrabold text-sm text-gray-900 ${isInactive ? "line-through text-red-700" : ""}`}>
-                    {prod.name}
-                  </h4>
-                  <p className="text-[10px] text-gray-500 font-medium mt-0.5">
-                    Categoria: <span className="font-bold text-[#5A5A40]">{categories.find(c => c.id === prod.categoryId || c.name === prod.categoryId)?.name || "Geral"}</span>
-                  </p>
-                </div>
-
-                {/* Size Stock grid preview */}
-                <div className="space-y-1">
-                  <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wider">Tamanhos e Estoque:</p>
-                  <div className="flex flex-wrap gap-1">
-                    {prod.sizes.map((sz, i) => (
-                      <span key={i} className={`text-[9px] px-1.5 py-0.5 rounded font-mono font-bold ${sz.stock === 0 ? "bg-red-100 text-red-500" : "bg-gray-100 text-gray-600"}`}>
-                        {sz.size}: {sz.stock}
+                  {/* Gender / Session Badge */}
+                  <div className="absolute bottom-2 left-2 flex gap-1">
+                    {prodGender === "menino" && (
+                      <span className="bg-blue-600/90 text-white text-[9px] font-black uppercase px-2 py-0.5 rounded-md shadow flex items-center gap-1">
+                        👦 MENINO
                       </span>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Pricing info */}
-                <div className="flex flex-col gap-2 pt-2 border-t border-gray-100">
-                  <div className="flex justify-between items-baseline">
-                    <div className="text-left">
-                      <span className="text-[9px] text-gray-400 block">Custo: R$ {prod.cost.toFixed(2)}</span>
-                      <span className="text-xs font-bold text-gray-800">Preço: R$ {prod.price.toFixed(2)}</span>
-                    </div>
-                    
-                    {deleteConfirmId !== prod.id && (
-                      <div className="flex gap-1">
-                        <button
-                          onClick={() => handleOpenEditForm(prod)}
-                          className="p-1 text-[#5A5A40] hover:bg-[#5A5A40]/10 rounded transition"
-                          title="Editar"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => setDeleteConfirmId(prod.id)}
-                          className="p-1 text-red-500 hover:bg-red-50 rounded transition"
-                          title="Deletar"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
+                    )}
+                    {prodGender === "menina" && (
+                      <span className="bg-pink-600/90 text-white text-[9px] font-black uppercase px-2 py-0.5 rounded-md shadow flex items-center gap-1">
+                        👧 MENINA
+                      </span>
+                    )}
+                    {prodGender === "unissex" && (
+                      <span className="bg-amber-600/90 text-white text-[9px] font-black uppercase px-2 py-0.5 rounded-md shadow flex items-center gap-1">
+                        ✨ UNISSEX
+                      </span>
                     )}
                   </div>
 
-                  {deleteConfirmId === prod.id && (
-                    <div className="flex items-center gap-3 bg-red-50 p-2.5 rounded-xl border border-red-200 justify-between mt-2 shadow-xs">
-                      <span className="text-[10px] font-bold text-red-600 uppercase tracking-wide">Excluir produto?</span>
-                      <div className="flex gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            onDeleteProduct(prod.id);
-                            setDeleteConfirmId(null);
-                            triggerNotification(`Produto ${prod.name} excluído.`);
-                          }}
-                          className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-[11px] font-bold transition active:scale-95 shadow-2xs cursor-pointer min-h-[36px] min-w-[54px] flex items-center justify-center"
-                        >
-                          Sim
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setDeleteConfirmId(null)}
-                          className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg text-[11px] font-bold transition active:scale-95 cursor-pointer min-h-[36px] min-w-[54px] flex items-center justify-center"
-                        >
-                          Não
-                        </button>
-                      </div>
-                    </div>
+                  {/* Status tag */}
+                  {isInactive ? (
+                    <span className="absolute top-2 right-2 bg-red-600 text-white text-[9px] font-extrabold uppercase px-2 py-0.5 rounded shadow">
+                      INATIVO
+                    </span>
+                  ) : (
+                    <span className="absolute top-2 right-2 bg-green-600 text-white text-[9px] font-bold px-2 py-0.5 rounded shadow">
+                      ATIVO
+                    </span>
                   )}
                 </div>
-              </div>
 
-            </div>
-          );
-        })}
-      </div>
+                {/* Product Details body */}
+                <div className="p-3.5 flex-1 flex flex-col justify-between space-y-3">
+                  <div>
+                    <div className="flex items-center justify-between gap-1 mb-1">
+                      <span className="text-[10px] text-gray-500 font-bold uppercase truncate">
+                        {categories.find(c => c.id === prod.categoryId || c.name === prod.categoryId)?.name || "Geral"}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEditForm(prod)}
+                        className={`text-[9px] font-black px-1.5 py-0.5 rounded cursor-pointer hover:opacity-80 transition ${
+                          prodGender === "menino" ? "bg-blue-100 text-blue-800" :
+                          prodGender === "menina" ? "bg-pink-100 text-pink-800" :
+                          "bg-amber-100 text-amber-800"
+                        }`}
+                        title="Clique para alterar a sessão"
+                      >
+                        Sessão: {prodGender === "menino" ? "Menino 👦" : prodGender === "menina" ? "Menina 👧" : "Ambos ✨"}
+                      </button>
+                    </div>
+
+                    <h4 className={`font-extrabold text-sm text-gray-900 ${isInactive ? "line-through text-red-700" : ""}`}>
+                      {prod.name}
+                    </h4>
+                  </div>
+
+                  {/* Size Stock grid preview */}
+                  <div className="space-y-1">
+                    <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wider">Tamanhos e Estoque:</p>
+                    <div className="flex flex-wrap gap-1">
+                      {prod.sizes.map((sz, i) => (
+                        <span key={i} className={`text-[9px] px-1.5 py-0.5 rounded font-mono font-bold ${sz.stock === 0 ? "bg-red-100 text-red-500" : "bg-gray-100 text-gray-600"}`}>
+                          {sz.size}: {sz.stock}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Pricing info */}
+                  <div className="flex flex-col gap-2 pt-2 border-t border-gray-100">
+                    <div className="flex justify-between items-baseline">
+                      <div className="text-left">
+                        <span className="text-[9px] text-gray-400 block">Custo: R$ {prod.cost.toFixed(2)}</span>
+                        <span className="text-xs font-bold text-gray-800">Preço: R$ {prod.price.toFixed(2)}</span>
+                      </div>
+                      
+                      {deleteConfirmId !== prod.id && (
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => handleOpenEditForm(prod)}
+                            className="p-1.5 text-[#5A5A40] hover:bg-[#5A5A40]/10 rounded-lg transition font-bold text-xs flex items-center gap-1"
+                            title="Editar produto e sessão"
+                          >
+                            <Edit className="w-3.5 h-3.5" /> Editar
+                          </button>
+                          <button
+                            onClick={() => setDeleteConfirmId(prod.id)}
+                            className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition"
+                            title="Deletar"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {deleteConfirmId === prod.id && (
+                      <div className="flex items-center gap-3 bg-red-50 p-2.5 rounded-xl border border-red-200 justify-between mt-2 shadow-xs">
+                        <span className="text-[10px] font-bold text-red-600 uppercase tracking-wide">Excluir produto?</span>
+                        <div className="flex gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onDeleteProduct(prod.id);
+                              setDeleteConfirmId(null);
+                              triggerNotification(`Produto ${prod.name} excluído.`);
+                            }}
+                            className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-[11px] font-bold transition active:scale-95 shadow-2xs cursor-pointer min-h-[36px] min-w-[54px] flex items-center justify-center"
+                          >
+                            Sim
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDeleteConfirmId(null)}
+                            className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg text-[11px] font-bold transition active:scale-95 cursor-pointer min-h-[36px] min-w-[54px] flex items-center justify-center"
+                          >
+                            Não
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+              </div>
+            );
+          })}
+        </div>
+      )}
 
     </div>
   );

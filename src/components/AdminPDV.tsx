@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { 
   Plus, Minus, X, ShoppingCart, User, MessageSquare, 
   MapPin, Phone, CreditCard, Search, RotateCcw, Check, Sparkles 
@@ -29,11 +29,38 @@ export default function AdminPDV({ state, onAddOrder }: AdminPDVProps) {
   const [customObservations, setCustomObservations] = useState("");
   const [promoCouponCode, setPromoCouponCode] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; value: number; type: "cupom" | "desconto" } | null>(null);
+  const [selectedSession, setSelectedSession] = useState<"todos" | "menino" | "menina">("todos");
+
+  // Displayed categories in PDV based on selected session
+  const displayedCategories = useMemo(() => {
+    if (selectedSession === "todos") return categories;
+    return categories.filter(c => {
+      const sec = c.section || c.gender || "ambos";
+      return sec === selectedSession || sec === "ambos" || sec === "unissex";
+    });
+  }, [categories, selectedSession]);
+
+  // Reset category if not in active session
+  useEffect(() => {
+    if (selectedCategory !== "all") {
+      const exists = displayedCategories.some(c => c.id === selectedCategory || c.name === selectedCategory);
+      if (!exists) setSelectedCategory("all");
+    }
+  }, [selectedSession, displayedCategories, selectedCategory]);
 
   // Filtered searchable items
   const filteredProducts = useMemo(() => {
     return products.filter(p => {
       if (p.status !== "ativo") return false;
+
+      // Session matching
+      if (selectedSession !== "todos") {
+        const prodGender = p.gender || p.section || "unissex";
+        if (prodGender !== selectedSession && prodGender !== "unissex") {
+          return false;
+        }
+      }
+
       if (selectedCategory !== "all") {
         const isMatch = p.categoryId === selectedCategory || 
                         categories.find(c => c.id === selectedCategory)?.name === p.categoryId ||
@@ -47,7 +74,7 @@ export default function AdminPDV({ state, onAddOrder }: AdminPDVProps) {
       }
       return true;
     });
-  }, [products, selectedCategory, searchQuery]);
+  }, [products, selectedSession, selectedCategory, searchQuery, categories]);
 
   // PDV calculation math
   const subtotal = useMemo(() => {
@@ -266,16 +293,53 @@ export default function AdminPDV({ state, onAddOrder }: AdminPDVProps) {
                 placeholder="Digitar nome ou código do produto..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-3 py-1.5 bg-[#f5f5f0]/50 rounded-xl border border-[#e0e0d6] focus:outline-none focus:border-[#5A5A40] text-xs"
+                className="w-full pl-9 pr-3 py-1.5 bg-[#f5f5f0]/50 rounded-xl border border-[#e0e0d6] focus:outline-none focus:border-[#5A5A40] text-xs font-medium"
               />
             </div>
+          </div>
+
+          {/* Session Switcher in PDV */}
+          <div className="flex items-center gap-1.5 bg-[#f5f5f0] p-1 rounded-xl w-fit border border-[#e0e0d6]">
+            <button
+              type="button"
+              onClick={() => setSelectedSession("todos")}
+              className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                selectedSession === "todos"
+                  ? "bg-white text-gray-900 shadow-xs"
+                  : "text-gray-600 hover:text-gray-900"
+              }`}
+            >
+              🧸 Todos
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedSession("menino")}
+              className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                selectedSession === "menino"
+                  ? "bg-blue-600 text-white shadow-xs"
+                  : "text-gray-600 hover:text-blue-700"
+              }`}
+            >
+              👦 Menino
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedSession("menina")}
+              className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                selectedSession === "menina"
+                  ? "bg-pink-600 text-white shadow-xs"
+                  : "text-gray-600 hover:text-pink-700"
+              }`}
+            >
+              👧 Menina
+            </button>
           </div>
 
           {/* Categories select */}
           <div className="flex gap-1.5 overflow-x-auto no-scrollbar py-0.5">
             <button
               onClick={() => setSelectedCategory("all")}
-              className={`px-3 py-1.5 rounded-full text-[11px] font-semibold transition ${
+              className={`px-3 py-1.5 rounded-full text-[11px] font-bold transition cursor-pointer ${
                 selectedCategory === "all"
                   ? "bg-[#5A5A40] text-white shadow-sm"
                   : "bg-gray-100 hover:bg-gray-200 text-gray-600"
@@ -283,11 +347,11 @@ export default function AdminPDV({ state, onAddOrder }: AdminPDVProps) {
             >
               🏷️ Todas
             </button>
-            {categories.map((cat) => (
+            {displayedCategories.map((cat) => (
               <button
                 key={cat.id}
                 onClick={() => setSelectedCategory(cat.id)}
-                className={`px-3 py-1.5 rounded-full text-[11px] font-semibold transition ${
+                className={`px-3 py-1.5 rounded-full text-[11px] font-bold transition cursor-pointer ${
                   selectedCategory === cat.id
                     ? "bg-[#5A5A40] text-white shadow-sm"
                     : "bg-gray-100 hover:bg-gray-200 text-gray-600"

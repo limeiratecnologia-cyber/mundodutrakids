@@ -8,6 +8,7 @@ import {
   collection,
   getDocs,
   onSnapshot,
+  writeBatch,
   getDocFromServer
 } from "firebase/firestore";
 import { compressBase64Image } from "../utils/imageCompressor";
@@ -25,8 +26,19 @@ const firebaseConfig = {
 // Initialize Firebase App
 const app = initializeApp(firebaseConfig);
 
-// Initialize Firestore with the specific custom database ID provisioned for this applet
+// Initialize Firestore with the custom database ID provisioned for this applet
 export const db = getFirestore(app, "ai-studio-mundodutrakids-1f651df0-9fa5-42b8-abd2-f75b07a41ac3");
+
+async function testConnection() {
+  try {
+    await getDocFromServer(doc(db, "store_config", "general"));
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("the client is offline")) {
+      console.warn("Client is offline or initializing connection.");
+    }
+  }
+}
+testConnection();
 
 const STATE_DOC_PATH = "store_data/state";
 const CONFIG_DOC_PATH = "store_config/general";
@@ -129,7 +141,9 @@ export async function sanitizeProductForCloud(product: Product): Promise<Product
   return cleanUndefined({
     ...product,
     image: mainImg,
-    images: uniqueImgs.slice(0, 8)
+    images: uniqueImgs.slice(0, 8),
+    gender: product.gender || product.section || "unissex",
+    section: product.section || product.gender || "unissex"
   });
 }
 
@@ -140,7 +154,7 @@ export async function syncSingleProductToFirebase(product: Product) {
   try {
     const sanitized = await sanitizeProductForCloud(product);
     const docRef = doc(db, PRODUCTS_COLLECTION, sanitized.id);
-    await setDoc(docRef, sanitized);
+    await setDoc(docRef, sanitized, { merge: true });
     console.log(`[Firebase] Product ${product.id} synced directly.`);
   } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, `${PRODUCTS_COLLECTION}/${product.id}`);
@@ -160,49 +174,40 @@ export async function deleteSingleProductFromFirebase(productId: string) {
   }
 }
 
+// Queue management for state synchronization to prevent write stream exhaustion
+let saveTimeout: any = null;
+let isSaving = false;
+let pendingStateToSave: any = null;
+
 /**
- * Saves the entire SystemState to Firebase Firestore with multi-collection resilience:
- * - Each product is saved to 'products/{productId}'
- * - Store configuration, banners, landpage, PWA, live shop, and categories to 'store_config/general'
- * - Legacy backup to 'store_data/state'
+ * Internal worker that performs batched writes to Firestore
  */
-export async function saveStateToFirebase(state: any) {
+async function performBatchedStateSave(state: any) {
+  if (isSaving) {
+    pendingStateToSave = state;
+    return;
+  }
+
+  isSaving = true;
+
   try {
     const cleanedState = cleanUndefined(state);
 
-    // 1. Process and save each product individually in parallel
+    // 1. Write products using atomic writeBatch (up to 500 per batch, single write stream request)
     if (Array.isArray(cleanedState.products) && cleanedState.products.length > 0) {
-      const sanitizedProducts: Product[] = [];
+      const batch = writeBatch(db);
       
       for (const p of cleanedState.products) {
-        try {
-          const sanitized = await sanitizeProductForCloud(p);
-          sanitizedProducts.push(sanitized);
-          // Write individual product document
-          const prodDocRef = doc(db, PRODUCTS_COLLECTION, sanitized.id);
-          await setDoc(prodDocRef, sanitized);
-        } catch (prodErr) {
-          console.error(`Error saving product ${p?.id} to Firestore:`, prodErr);
-        }
+        if (!p || !p.id) continue;
+        const sanitized = await sanitizeProductForCloud(p);
+        const prodDocRef = doc(db, PRODUCTS_COLLECTION, sanitized.id);
+        batch.set(prodDocRef, sanitized, { merge: true });
       }
 
-      // Check if any deleted products need to be removed from Firestore
-      try {
-        const cloudProductsSnap = await getDocs(collection(db, PRODUCTS_COLLECTION));
-        const currentIds = new Set(cleanedState.products.map((p: any) => p.id));
-        
-        for (const cloudDoc of cloudProductsSnap.docs) {
-          if (!currentIds.has(cloudDoc.id)) {
-            await deleteDoc(cloudDoc.ref);
-            console.log(`[Firebase] Cleaned up deleted product ${cloudDoc.id}`);
-          }
-        }
-      } catch (cleanupErr) {
-        console.warn("Could not cleanup deleted products:", cleanupErr);
-      }
+      await batch.commit();
     }
 
-    // 2. Process store configurations (compress banners if base64)
+    // 2. Prepare store configurations
     const configData: any = {
       adminPasscode: cleanedState.adminPasscode || "9310",
       categories: cleanedState.categories || [],
@@ -236,33 +241,13 @@ export async function saveStateToFirebase(state: any) {
       configData.landpage.faviconImage = await shrinkBase64IfNeeded(configData.landpage.faviconImage, 128, 0.6);
     }
 
-    // Save general config
-    await setDoc(doc(db, CONFIG_DOC_PATH), cleanUndefined(configData));
+    // Save general config with single write
+    await setDoc(doc(db, CONFIG_DOC_PATH), cleanUndefined(configData), { merge: true });
 
-    // Also update legacy store_data/state with compact summary
-    const legacyDoc = {
-      ...configData,
-      products: (cleanedState.products || []).map((p: Product) => ({
-        id: p.id,
-        code: p.code,
-        name: p.name,
-        price: p.price,
-        cost: p.cost,
-        image: p.image,
-        categoryId: p.categoryId,
-        age: p.age,
-        status: p.status,
-        description: p.description,
-        sizes: p.sizes,
-        createdAt: p.createdAt
-      }))
-    };
-    await setDoc(doc(db, STATE_DOC_PATH), cleanUndefined(legacyDoc));
-
-    console.log("[Firebase] Entire store state synchronized successfully.");
+    console.log("[Firebase] Store state batched & synced successfully.");
   } catch (error) {
-    console.error("Firestore Save Error:", error);
-    // Fallback: keep local storage updated
+    console.error("Firestore Batched Save Error:", error);
+    // Keep local storage updated
     try {
       if (typeof window !== "undefined" && window.localStorage) {
         localStorage.setItem("mundo_dutra_kids_state", JSON.stringify(state));
@@ -270,7 +255,33 @@ export async function saveStateToFirebase(state: any) {
     } catch (e) {
       console.error("LocalStorage fallback error:", e);
     }
+  } finally {
+    isSaving = false;
+    if (pendingStateToSave) {
+      const nextState = pendingStateToSave;
+      pendingStateToSave = null;
+      performBatchedStateSave(nextState);
+    }
   }
+}
+
+/**
+ * Debounced save to Firestore preventing write stream exhaustion
+ */
+export function saveStateToFirebase(state: any, immediate: boolean = false) {
+  if (saveTimeout) {
+    clearTimeout(saveTimeout);
+    saveTimeout = null;
+  }
+
+  if (immediate) {
+    performBatchedStateSave(state);
+    return;
+  }
+
+  saveTimeout = setTimeout(() => {
+    performBatchedStateSave(state);
+  }, 800);
 }
 
 /**
@@ -298,7 +309,7 @@ export async function getStateFromFirebase(): Promise<any | null> {
       }
     }
 
-    // If products collection is empty but legacy doc has products, use legacy products
+    // If products collection is empty but config has products, use those products
     let finalProducts = products;
     if (finalProducts.length === 0 && Array.isArray(configData.products) && configData.products.length > 0) {
       finalProducts = configData.products;
@@ -317,18 +328,14 @@ export async function getStateFromFirebase(): Promise<any | null> {
 }
 
 /**
- * Listens to real-time changes across both 'products' collection and 'store_config/general'
- * (with automatic legacy fallback), ensuring that any change from iPad, iPhone, Android, or PC
- * is immediately propagated to all connected clients in real time!
+ * Listens to real-time changes across both 'products' collection and 'store_config/general',
+ * ensuring instant cross-device updates across iPhone, iPad, Android, and Desktop without write feedback loops.
  */
 export function listenToFirebaseState(onUpdate: (state: any) => void) {
   let latestProducts: Product[] = [];
   let latestConfig: any = {};
-  let isProductsLoaded = false;
-  let isConfigLoaded = false;
 
   const emitCombinedState = () => {
-    // Combine products and configuration
     const combined = {
       ...latestConfig,
       products: latestProducts.length > 0 ? latestProducts : (latestConfig.products || [])
@@ -345,12 +352,10 @@ export function listenToFirebaseState(onUpdate: (state: any) => void) {
         prods.push(doc.data() as Product);
       });
       latestProducts = prods;
-      isProductsLoaded = true;
       emitCombinedState();
     },
     (err) => {
-      console.warn("Firestore products collection listener error:", err);
-      isProductsLoaded = true;
+      console.warn("Firestore products collection listener notice:", err);
     }
   );
 
@@ -360,58 +365,16 @@ export function listenToFirebaseState(onUpdate: (state: any) => void) {
     (docSnap) => {
       if (docSnap.exists()) {
         latestConfig = { ...latestConfig, ...docSnap.data() };
-        isConfigLoaded = true;
-        emitCombinedState();
-      } else {
-        // Fallback to legacy state doc if store_config/general not yet created
-        getDoc(doc(db, STATE_DOC_PATH)).then((legacySnap) => {
-          if (legacySnap.exists()) {
-            latestConfig = { ...latestConfig, ...legacySnap.data() };
-            if (latestProducts.length === 0 && Array.isArray(legacySnap.data().products)) {
-              latestProducts = legacySnap.data().products;
-            }
-            emitCombinedState();
-          }
-          isConfigLoaded = true;
-        }).catch(() => {
-          isConfigLoaded = true;
-        });
-      }
-    },
-    (err) => {
-      console.warn("Firestore config listener error:", err);
-      isConfigLoaded = true;
-    }
-  );
-
-  // 3. Also listen to legacy store_data/state in case an older client writes to it
-  const unsubscribeLegacy = onSnapshot(
-    doc(db, STATE_DOC_PATH),
-    (docSnap) => {
-      if (docSnap.exists()) {
-        const legacyData = docSnap.data();
-        // If products collection is currently empty, sync from legacy
-        if (latestProducts.length === 0 && Array.isArray(legacyData.products) && legacyData.products.length > 0) {
-          latestProducts = legacyData.products;
-          // Automatically seed products collection from legacy doc
-          legacyData.products.forEach((p: Product) => {
-            setDoc(doc(db, PRODUCTS_COLLECTION, p.id), p).catch(() => {});
-          });
-        }
-        latestConfig = { ...legacyData, ...latestConfig };
         emitCombinedState();
       }
     },
     (err) => {
-      console.warn("Firestore legacy state listener error:", err);
+      console.warn("Firestore config listener notice:", err);
     }
   );
 
   return () => {
     unsubscribeProducts();
     unsubscribeConfig();
-    unsubscribeLegacy();
   };
 }
-
-

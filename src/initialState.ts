@@ -1,9 +1,12 @@
 import { SystemState, Category, Product } from "./types";
 
 const defaultCategories: Category[] = [
-  { id: "cat-1", name: "✨ ROUPAS", description: "Vestuário infantil e juvenil de alto padrão" },
-  { id: "cat-2", name: "✨ CALÇADOS", description: "Tênis, sandálias e sapatinhos confortáveis" },
-  { id: "cat-3", name: "✨ ACESSÓRIOS", description: "Laços, tiaras, bandanas e cintos" }
+  { id: "cat-menino-1", name: "👕 CONJUNTOS & BERMUDAS", description: "Camisetas, polos, bermudas e conjuntos de menino", section: "menino", gender: "menino" },
+  { id: "cat-menino-2", name: "👟 TÊNIS & SAPATÊNIS", description: "Calçados masculinos infantis para passear e brincar", section: "menino", gender: "menino" },
+  { id: "cat-menina-1", name: "👗 VESTIDOS & SAIAS", description: "Vestidos de festa, casuais e saias encantadoras", section: "menina", gender: "menina" },
+  { id: "cat-menina-2", name: "🎀 LAÇOS & TIARAS", description: "Acessórios de cabelo, presilhas e faixas", section: "menina", gender: "menina" },
+  { id: "cat-unissex-1", name: "🧸 PIJAMAS & BODY", description: "Roupas confortáveis para o dia a dia e sono", section: "ambos", gender: "ambos" },
+  { id: "cat-unissex-2", name: "✨ CALÇADOS CONFORT", description: "Tênis e sapatinhos anatômicos", section: "ambos", gender: "ambos" }
 ];
 
 const defaultProducts: Product[] = [
@@ -14,7 +17,9 @@ const defaultProducts: Product[] = [
     price: 89.90,
     cost: 45.00,
     image: "https://images.unsplash.com/photo-1519457431-44ccd64a579b?q=80&w=600&auto=format&fit=crop",
-    categoryId: "cat-1",
+    categoryId: "cat-menino-1",
+    gender: "menino",
+    section: "menino",
     sizes: [
       { size: "2 anos", stock: 5 },
       { size: "4 anos", stock: 8 },
@@ -23,7 +28,7 @@ const defaultProducts: Product[] = [
     ],
     age: "2 a 8 anos",
     status: "ativo",
-    description: "Conjunto unissex de camiseta 100% algodão egípcio e bermuda de linho leve. Conforto total para os dias ensolarados.",
+    description: "Conjunto de camiseta 100% algodão e bermuda de linho leve. Conforto total para os príncipes nos dias ensolarados.",
     createdAt: new Date().toISOString()
   },
   {
@@ -33,7 +38,9 @@ const defaultProducts: Product[] = [
     price: 139.90,
     cost: 70.00,
     image: "https://images.unsplash.com/photo-1514989940723-e8e51635b782?q=80&w=600&auto=format&fit=crop",
-    categoryId: "cat-2",
+    categoryId: "cat-unissex-2",
+    gender: "unissex",
+    section: "unissex",
     sizes: [
       { size: "22", stock: 3 },
       { size: "24", stock: 4 },
@@ -52,7 +59,9 @@ const defaultProducts: Product[] = [
     price: 24.90,
     cost: 8.00,
     image: "https://images.unsplash.com/photo-1518895949257-7621c3c786d7?q=80&w=600&auto=format&fit=crop",
-    categoryId: "cat-3",
+    categoryId: "cat-menina-2",
+    gender: "menina",
+    section: "menina",
     sizes: [
       { size: "Único", stock: 20 }
     ],
@@ -68,7 +77,9 @@ const defaultProducts: Product[] = [
     price: 119.90,
     cost: 55.00,
     image: "https://images.unsplash.com/photo-1518831959646-742c3a14ebf7?q=80&w=600&auto=format&fit=crop",
-    categoryId: "cat-1",
+    categoryId: "cat-menina-1",
+    gender: "menina",
+    section: "menina",
     sizes: [
       { size: "4 anos", stock: 0 },
       { size: "6 anos", stock: 4 }
@@ -213,7 +224,7 @@ export const getDefaultState = (): SystemState => {
 export const mergeWithDefaults = (parsed: any): SystemState => {
   const defaults = getDefaultState();
 
-  let products = Array.isArray(parsed?.products) && parsed.products.length > 0 ? parsed.products : defaults.products;
+  const products = Array.isArray(parsed?.products) ? parsed.products : defaults.products;
 
   // Cache products locally for offline support without overriding Cloud state
   try {
@@ -229,6 +240,9 @@ export const mergeWithDefaults = (parsed: any): SystemState => {
   const categories = Array.isArray(parsed?.categories) && parsed.categories.length > 0 ? parsed.categories : defaults.categories;
   const orders = Array.isArray(parsed?.orders) ? parsed.orders : defaults.orders;
   const transactions = Array.isArray(parsed?.transactions) ? parsed.transactions : defaults.transactions;
+  const shippingNeighborhoods = Array.isArray(parsed?.shippingNeighborhoods) && parsed.shippingNeighborhoods.length > 0 ? parsed.shippingNeighborhoods : defaults.shippingNeighborhoods;
+  const promotions = Array.isArray(parsed?.promotions) ? parsed.promotions : defaults.promotions;
+  const avisos = Array.isArray(parsed?.avisos) ? parsed.avisos : defaults.avisos;
   const auditLogs = Array.isArray(parsed?.auditLogs) ? parsed.auditLogs : defaults.auditLogs;
 
   // Merge nested landpage configuration safely

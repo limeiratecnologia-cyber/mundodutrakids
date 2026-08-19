@@ -16,6 +16,8 @@ export interface Product {
   categoryId: string;
   sizes: ProductSizeStock[];
   age: string; // e.g., "1 ano", "2 anos", "infantil", "teen"
+  gender?: "menino" | "menina" | "unissex"; // Session / Gender section for store navigation
+  section?: "menino" | "menina" | "unissex";
   status: "ativo" | "inativo";
   description: string;
   createdAt: string;
@@ -25,6 +27,8 @@ export interface Category {
   id: string;
   name: string;
   description?: string;
+  section?: "menino" | "menina" | "ambos" | "unissex";
+  gender?: "menino" | "menina" | "ambos" | "unissex";
 }
 
 export interface OrderItem {

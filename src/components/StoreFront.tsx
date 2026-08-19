@@ -20,6 +20,7 @@ export default function StoreFront({ state, onPlaceOrder, onBackToAdmin }: Store
   const { products, categories, landpage, shippingNeighborhoods, shippingType, shippingFixedCost, promotions, avisos, live } = state;
 
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedSection, setSelectedSection] = useState<"todos" | "menino" | "menina">("todos");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [selectedSizeFilter, setSelectedSizeFilter] = useState<string>("all");
   
@@ -238,11 +239,47 @@ export default function StoreFront({ state, onPlaceOrder, onBackToAdmin }: Store
     return Array.from(sizes);
   }, [products]);
 
+  // Session counts
+  const storeCountMenino = useMemo(() => {
+    return products.filter(p => p.status === "ativo" && ((p.gender || p.section) === "menino" || (p.gender || p.section) === "unissex" || (!p.gender && !p.section))).length;
+  }, [products]);
+
+  const storeCountMenina = useMemo(() => {
+    return products.filter(p => p.status === "ativo" && ((p.gender || p.section) === "menina" || (p.gender || p.section) === "unissex" || (!p.gender && !p.section))).length;
+  }, [products]);
+
+  // Categories displayed based on the active session (Menino, Menina, Todos)
+  const displayedCategories = useMemo(() => {
+    if (selectedSection === "todos") return categories;
+    return categories.filter(c => {
+      const sec = c.section || c.gender || "ambos";
+      return sec === selectedSection || sec === "ambos" || sec === "unissex";
+    });
+  }, [categories, selectedSection]);
+
+  // Reset selected category if it does not belong to the newly active session
+  useEffect(() => {
+    if (selectedCategory !== "all") {
+      const existsInCurrentSection = displayedCategories.some(c => c.id === selectedCategory || c.name === selectedCategory);
+      if (!existsInCurrentSection) {
+        setSelectedCategory("all");
+      }
+    }
+  }, [selectedSection, displayedCategories, selectedCategory]);
+
   // Filtered Products
   const filteredProducts = useMemo(() => {
     return products.filter(p => {
       // Must be active
       if (p.status !== "ativo") return false;
+
+      // Section (Menino / Menina) matching
+      if (selectedSection !== "todos") {
+        const prodGender = p.gender || p.section || "unissex";
+        if (prodGender !== selectedSection && prodGender !== "unissex") {
+          return false;
+        }
+      }
 
       // Category matching
       if (selectedCategory !== "all") {
@@ -267,7 +304,7 @@ export default function StoreFront({ state, onPlaceOrder, onBackToAdmin }: Store
 
       return true;
     });
-  }, [products, selectedCategory, selectedSizeFilter, searchQuery]);
+  }, [products, selectedSection, selectedCategory, selectedSizeFilter, searchQuery, categories]);
 
   // Totals calculations
   const subtotal = useMemo(() => {
@@ -1412,6 +1449,110 @@ export default function StoreFront({ state, onPlaceOrder, onBackToAdmin }: Store
 
       {/* Catalog Search & Filters */}
       <section className="py-8 px-4 md:px-8 max-w-7xl mx-auto w-full">
+        {/* Dedicated Store Session Navigation (MENINO / MENINA / TODAS) */}
+        <div className="mb-6">
+          <div className="bg-white p-2 md:p-3 rounded-3xl border-2 border-[#e0e0d6] shadow-sm flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2 px-3 py-1">
+              <span className="text-xl">🎪</span>
+              <div>
+                <p className="text-[10px] uppercase font-black text-gray-400 tracking-wider">Navegar por Sessão</p>
+                <h3 className="text-xs font-black text-gray-800">Escolha a vitrine para ver os looks:</h3>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2 flex-1 sm:max-w-xl">
+              {/* Button Menino */}
+              <button
+                type="button"
+                onClick={() => setSelectedSection("menino")}
+                className={`py-2.5 px-3 rounded-2xl text-xs font-black flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs ${
+                  selectedSection === "menino"
+                    ? "bg-blue-600 text-white shadow-md ring-2 ring-blue-300 scale-[1.02]"
+                    : "bg-blue-50/70 text-blue-800 hover:bg-blue-100/80 border border-blue-200"
+                }`}
+              >
+                <span className="text-base">👦</span>
+                <span>MENINO ({storeCountMenino})</span>
+              </button>
+
+              {/* Button Menina */}
+              <button
+                type="button"
+                onClick={() => setSelectedSection("menina")}
+                className={`py-2.5 px-3 rounded-2xl text-xs font-black flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs ${
+                  selectedSection === "menina"
+                    ? "bg-pink-600 text-white shadow-md ring-2 ring-pink-300 scale-[1.02]"
+                    : "bg-pink-50/70 text-pink-800 hover:bg-pink-100/80 border border-pink-200"
+                }`}
+              >
+                <span className="text-base">👧</span>
+                <span>MENINA ({storeCountMenina})</span>
+              </button>
+
+              {/* Button Todos */}
+              <button
+                type="button"
+                onClick={() => setSelectedSection("todos")}
+                className={`py-2.5 px-3 rounded-2xl text-xs font-black flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs ${
+                  selectedSection === "todos"
+                    ? "bg-[#5A5A40] text-white shadow-md ring-2 ring-gray-400 scale-[1.02]"
+                    : "bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200"
+                }`}
+              >
+                <span className="text-base">🧸</span>
+                <span>VER TUDO</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Contextual Banner for Selected Session */}
+          {selectedSection === "menino" && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-3 bg-blue-50/90 border border-blue-200 rounded-2xl p-3.5 flex items-center justify-between gap-3 text-blue-900"
+            >
+              <div className="flex items-center gap-2.5">
+                <span className="text-2xl">👦</span>
+                <div>
+                  <p className="text-xs font-extrabold text-blue-950">Vitrine dos Príncipes (Sessão Menino)</p>
+                  <p className="text-[11px] text-blue-700 font-medium">Camisetas, bermudas, conjuntinhos e calçados com total conforto para brincar!</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedSection("todos")}
+                className="text-[10px] font-bold text-blue-800 bg-white border border-blue-200 hover:bg-blue-100/80 px-2.5 py-1.5 rounded-xl shrink-0 transition"
+              >
+                Ver Todas as Peças ✕
+              </button>
+            </motion.div>
+          )}
+
+          {selectedSection === "menina" && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-3 bg-pink-50/90 border border-pink-200 rounded-2xl p-3.5 flex items-center justify-between gap-3 text-pink-900"
+            >
+              <div className="flex items-center gap-2.5">
+                <span className="text-2xl">👧</span>
+                <div>
+                  <p className="text-xs font-extrabold text-pink-950">Vitrine das Princesas (Sessão Menina)</p>
+                  <p className="text-[11px] text-pink-700 font-medium">Vestidinhos, laços, conjuntinhos florais e acessórios cheios de charme!</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedSection("todos")}
+                className="text-[10px] font-bold text-pink-800 bg-white border border-pink-200 hover:bg-pink-100/80 px-2.5 py-1.5 rounded-xl shrink-0 transition"
+              >
+                Ver Todas as Peças ✕
+              </button>
+            </motion.div>
+          )}
+        </div>
+
         <div className="bg-white p-5 rounded-2xl border border-[#e0e0d6] shadow-sm mb-6 space-y-4">
           <div className="flex flex-col md:flex-row md:items-center gap-3">
             {/* Expanded Multi-Field Search */}
@@ -1430,7 +1571,7 @@ export default function StoreFront({ state, onPlaceOrder, onBackToAdmin }: Store
             <div className="flex gap-1.5 overflow-x-auto no-scrollbar py-1">
               <button
                 onClick={() => setSelectedCategory("all")}
-                className={`px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition ${
+                className={`px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
                   selectedCategory === "all"
                     ? "bg-[#5A5A40] text-white shadow-sm"
                     : "bg-[#e0e0d6]/40 hover:bg-[#e0e0d6]/70 text-[#5A5A40]"
@@ -1438,11 +1579,11 @@ export default function StoreFront({ state, onPlaceOrder, onBackToAdmin }: Store
               >
                 Todos
               </button>
-              {categories.map((cat) => (
+              {displayedCategories.map((cat) => (
                 <button
                   key={cat.id}
                   onClick={() => setSelectedCategory(cat.id)}
-                  className={`px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition ${
+                  className={`px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
                     selectedCategory === cat.id
                       ? "bg-[#5A5A40] text-white shadow-sm"
                       : "bg-[#e0e0d6]/40 hover:bg-[#e0e0d6]/70 text-[#5A5A40]"
@@ -1523,6 +1664,23 @@ export default function StoreFront({ state, onPlaceOrder, onBackToAdmin }: Store
                     {/* Sequential code tag */}
                     <div className="absolute top-2 right-2 bg-black/65 text-white text-[9px] font-mono px-2 py-0.5 rounded">
                       {prod.code}
+                    </div>
+
+                    {/* Gender / Session tag */}
+                    <div className="absolute bottom-2 left-2 z-10">
+                      {(prod.gender === "menino" || prod.section === "menino") ? (
+                        <span className="bg-blue-600/90 backdrop-blur-xs text-white text-[9px] font-black uppercase px-2 py-0.5 rounded-md flex items-center gap-1 shadow-xs">
+                          <span>👦</span> Menino
+                        </span>
+                      ) : (prod.gender === "menina" || prod.section === "menina") ? (
+                        <span className="bg-pink-600/90 backdrop-blur-xs text-white text-[9px] font-black uppercase px-2 py-0.5 rounded-md flex items-center gap-1 shadow-xs">
+                          <span>👧</span> Menina
+                        </span>
+                      ) : (
+                        <span className="bg-amber-600/90 backdrop-blur-xs text-white text-[9px] font-black uppercase px-2 py-0.5 rounded-md flex items-center gap-1 shadow-xs">
+                          <span>✨</span> Unissex
+                        </span>
+                      )}
                     </div>
                   </div>
 
@@ -1655,9 +1813,24 @@ export default function StoreFront({ state, onPlaceOrder, onBackToAdmin }: Store
                     <h3 className="text-xl font-bold text-gray-900 leading-tight">
                       {viewingProduct.name}
                     </h3>
-                    <span className="bg-[#5A5A40]/10 text-[#5A5A40] text-xs font-mono px-2.5 py-0.5 rounded font-bold">
-                      {viewingProduct.code}
-                    </span>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {(viewingProduct.gender === "menino" || viewingProduct.section === "menino") ? (
+                        <span className="bg-blue-100 text-blue-800 text-[10px] font-black uppercase px-2 py-0.5 rounded-full border border-blue-200">
+                          👦 Menino
+                        </span>
+                      ) : (viewingProduct.gender === "menina" || viewingProduct.section === "menina") ? (
+                        <span className="bg-pink-100 text-pink-800 text-[10px] font-black uppercase px-2 py-0.5 rounded-full border border-pink-200">
+                          👧 Menina
+                        </span>
+                      ) : (
+                        <span className="bg-amber-100 text-amber-800 text-[10px] font-black uppercase px-2 py-0.5 rounded-full border border-amber-200">
+                          ✨ Unissex
+                        </span>
+                      )}
+                      <span className="bg-[#5A5A40]/10 text-[#5A5A40] text-xs font-mono px-2.5 py-0.5 rounded font-bold">
+                        {viewingProduct.code}
+                      </span>
+                    </div>
                   </div>
                   <p className="text-xs text-gray-500 mt-1">Recomendação: {viewingProduct.age}</p>
                 </div>
