@@ -319,7 +319,14 @@ export async function getStateFromFirebase(): Promise<any | null> {
     const productsSnap = await getDocs(collection(db, PRODUCTS_COLLECTION));
     const products: Product[] = [];
     productsSnap.forEach((d) => {
-      products.push(d.data() as Product);
+      const raw = d.data() as Product;
+      const session = raw.gender || raw.section || "menino";
+      products.push({
+        ...raw,
+        id: d.id || raw.id,
+        gender: session,
+        section: session
+      });
     });
 
     // 2. Try reading store_config/general
@@ -392,6 +399,7 @@ export function listenToFirebaseState(onUpdate: (state: any) => void) {
         const session = raw.gender || raw.section || "menino";
         prods.push({
           ...raw,
+          id: doc.id || raw.id,
           gender: session,
           section: session
         });
