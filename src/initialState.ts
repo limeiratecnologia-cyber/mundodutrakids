@@ -313,7 +313,7 @@ export const mergeWithDefaults = (parsed: any): SystemState => {
 };
 
 export const getInitialState = (): SystemState => {
-  const stored = localStorage.getItem("mundo_dutra_kids_state");
+  const stored = typeof window !== "undefined" && window.localStorage ? localStorage.getItem("mundo_dutra_kids_state") : null;
   if (stored) {
     try {
       const parsed = JSON.parse(stored);
@@ -321,19 +321,57 @@ export const getInitialState = (): SystemState => {
       if (parsed.products && parsed.categories && parsed.orders) {
         const merged = mergeWithDefaults(parsed);
         // Save merged state to keep it updated with defaults
-        localStorage.setItem("mundo_dutra_kids_state", JSON.stringify(merged));
+        saveState(merged);
         return merged;
       }
     } catch (e) {
-      console.error("Error reading localStorage state:", e);
+      console.warn("Error reading localStorage state:", e);
     }
   }
 
   const defaultState = getDefaultState();
-  localStorage.setItem("mundo_dutra_kids_state", JSON.stringify(defaultState));
+  saveState(defaultState);
   return defaultState;
 };
 
 export const saveState = (state: SystemState) => {
-  localStorage.setItem("mundo_dutra_kids_state", JSON.stringify(state));
+  if (typeof window === "undefined" || !window.localStorage || !state) return;
+
+  try {
+    localStorage.setItem("mundo_dutra_kids_state", JSON.stringify(state));
+  } catch (err: any) {
+    const isQuota =
+      err?.name === "QuotaExceededError" ||
+      err?.code === 22 ||
+      err?.code === 1014 ||
+      (typeof err?.message === "string" && err.message.toLowerCase().includes("quota"));
+
+    if (isQuota) {
+      console.warn("[Storage] Quota exceeded saving state. Evicting redundant backups to preserve primary data...");
+      try {
+        localStorage.removeItem("mundo_dutra_periodic_backups_history");
+        localStorage.removeItem("mundo_dutra_kids_products_backup");
+      } catch (_) {}
+
+      try {
+        localStorage.setItem("mundo_dutra_kids_state", JSON.stringify(state));
+      } catch (retryErr) {
+        // Strip heavy base64 images from localStorage copy (Cloud Firestore retains the real images)
+        try {
+          const fallbackImg = "https://images.unsplash.com/photo-1519457431-44ccd64a579b?q=80&w=400";
+          const strippedProducts = (state.products || []).map((p) => ({
+            ...p,
+            image: typeof p.image === "string" && p.image.startsWith("data:") && p.image.length > 2000 ? fallbackImg : p.image,
+            images: (p.images || []).map((img) => (typeof img === "string" && img.startsWith("data:") && img.length > 2000 ? fallbackImg : img))
+          }));
+          const stripped = { ...state, products: strippedProducts };
+          localStorage.setItem("mundo_dutra_kids_state", JSON.stringify(stripped));
+        } catch (_) {
+          console.warn("[Storage] Unable to cache state locally due to strict browser quota.");
+        }
+      }
+    } else {
+      console.warn("[Storage] Non-critical error saving state:", err);
+    }
+  }
 };

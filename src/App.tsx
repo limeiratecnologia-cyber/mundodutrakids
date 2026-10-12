@@ -18,6 +18,11 @@ export default function App() {
   // Set of deleted product IDs to prevent snapshots from resurrecting deleted items
   const deletedProductIdsRef = useRef<Set<string>>(new Set());
 
+  const stateRef = useRef(state);
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
+
   // Sync state to localStorage whenever it changes
   useEffect(() => {
     saveState(state);
@@ -25,18 +30,22 @@ export default function App() {
 
   // Periodic backup routine & midnight backup check
   useEffect(() => {
-    if (!loading && state) {
-      performPeriodicBackup(state);
-      checkAndRunMidnightBackup(state);
+    if (!loading) {
+      if (stateRef.current) {
+        performPeriodicBackup(stateRef.current);
+        checkAndRunMidnightBackup(stateRef.current);
+      }
 
       const interval = setInterval(() => {
-        performPeriodicBackup(state);
-        checkAndRunMidnightBackup(state);
-      }, 30000);
+        if (stateRef.current) {
+          performPeriodicBackup(stateRef.current);
+          checkAndRunMidnightBackup(stateRef.current);
+        }
+      }, 60000);
 
       return () => clearInterval(interval);
     }
-  }, [state, loading]);
+  }, [loading]);
 
   // Dynamic Page Title & Favicon sync
   useEffect(() => {
