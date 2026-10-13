@@ -234,12 +234,12 @@ export const mergeWithDefaults = (parsed: any): SystemState => {
     };
   });
 
-  // Cache products locally for offline support without overriding Cloud state
+  // Ensure no residual heavy backup is kept in browser memory
   try {
     if (typeof window !== "undefined" && window.localStorage) {
-      if (products.length > 0) {
-        localStorage.setItem("mundo_dutra_kids_products_backup", JSON.stringify(products));
-      }
+      localStorage.removeItem("mundo_dutra_kids_products_backup");
+      localStorage.removeItem("mundo_dutra_periodic_backups_history");
+      localStorage.removeItem("mundo_dutra_last_midnight_backup_date");
     }
   } catch (e) {
     // Ignore storage errors

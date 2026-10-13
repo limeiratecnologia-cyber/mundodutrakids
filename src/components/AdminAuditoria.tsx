@@ -1,10 +1,17 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { 
-  ShieldCheck, Database, RefreshCw, History, PlusCircle, Edit3, 
-  Trash2, RotateCcw, Search, CheckCircle2, AlertTriangle, Download, Trash
+  ShieldCheck, Database, History, PlusCircle, Edit3, 
+  Trash2, RotateCcw, Search, CheckCircle2, Download, Trash, 
+  Upload, HardDrive, Cloud, Sparkles
 } from "lucide-react";
 import { SystemState, AuditLogEntry, PeriodicBackupSnapshot } from "../types";
-import { getPeriodicBackups, performPeriodicBackup, clearPeriodicBackups } from "../utils/backupService";
+import { 
+  getPeriodicBackups, 
+  clearPeriodicBackups, 
+  getStorageUsage, 
+  downloadBackupJsonFile,
+  performPeriodicBackup 
+} from "../utils/backupService";
 
 interface AdminAuditoriaProps {
   state: SystemState;
@@ -17,30 +24,70 @@ export default function AdminAuditoria({ state, onUpdateState }: AdminAuditoriaP
   const [actionFilter, setActionFilter] = useState<string>("all");
   const [notification, setNotification] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [backups, setBackups] = useState<PeriodicBackupSnapshot[]>(() => getPeriodicBackups());
+  const [storageInfo, setStorageInfo] = useState(() => getStorageUsage());
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const auditLogs: AuditLogEntry[] = state.auditLogs || [];
 
   const triggerNotification = (message: string, type: "success" | "error" = "success") => {
     setNotification({ message, type });
-    setTimeout(() => setNotification(null), 3500);
+    setTimeout(() => setNotification(null), 4000);
   };
 
-  const handleManualBackup = () => {
-    const snap = performPeriodicBackup(state, true);
-    if (snap) {
-      setBackups(getPeriodicBackups());
-      triggerNotification("Novo backup criado! O antigo Último virou Penúltimo e o anterior foi sobrescrito.");
-    } else {
-      triggerNotification("Erro ao criar ponto de restauração.", "error");
-    }
-  };
-
-  const handleClearBackups = () => {
-    if (window.confirm("Deseja realmente limpar o histórico de backups locais?")) {
+  const handleClearBrowserMemory = () => {
+    if (window.confirm("Deseja esvaziar toda a memória de backup do navegador? Isso não afeta os produtos salvos na nuvem (Firebase).")) {
       clearPeriodicBackups();
       setBackups([]);
-      triggerNotification("Histórico de backups limpo.");
+      setStorageInfo(getStorageUsage());
+      triggerNotification("Memória do navegador completamente limpa e liberada!");
     }
+  };
+
+  const handleDownloadBackup = () => {
+    try {
+      downloadBackupJsonFile(state);
+      triggerNotification("Arquivo de backup baixado com sucesso para seu dispositivo!");
+    } catch (e) {
+      triggerNotification("Erro ao gerar arquivo de backup.", "error");
+    }
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const content = event.target?.result as string;
+        const parsed = JSON.parse(content);
+        if (parsed && (parsed.products || parsed.categories || parsed.landpage)) {
+          if (window.confirm(`Deseja restaurar a loja com os dados deste arquivo (${parsed.products?.length || 0} produtos encontrados)?`)) {
+            onUpdateState({
+              ...parsed,
+              auditLogs: [
+                {
+                  id: `log-${Date.now()}`,
+                  timestamp: new Date().toISOString(),
+                  action: "backup_restore",
+                  productName: "Restauração de Arquivo JSON",
+                  details: `Dados restaurados do arquivo ${file.name}`,
+                  user: "Admin"
+                },
+                ...(state.auditLogs || [])
+              ]
+            });
+            triggerNotification("Dados da loja restaurados com sucesso a partir do arquivo!");
+          }
+        } else {
+          triggerNotification("Arquivo inválido: Formato de backup não reconhecido.", "error");
+        }
+      } catch (err) {
+        triggerNotification("Erro ao ler arquivo JSON. Verifique o arquivo.", "error");
+      }
+    };
+    reader.readAsText(file);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const handleClearLogs = () => {
@@ -120,6 +167,15 @@ export default function AdminAuditoria({ state, onUpdateState }: AdminAuditoriaP
 
   return (
     <div className="space-y-6">
+      {/* Hidden file input for JSON import */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileUpload}
+        accept=".json"
+        className="hidden"
+      />
+
       {/* Toast Notification */}
       {notification && (
         <div className={`fixed bottom-5 right-5 z-50 p-4 rounded-xl shadow-lg border text-xs font-bold flex items-center gap-2 transition-all ${
@@ -127,7 +183,7 @@ export default function AdminAuditoria({ state, onUpdateState }: AdminAuditoriaP
             ? "bg-emerald-800 text-white border-emerald-700" 
             : "bg-rose-800 text-white border-rose-700"
         }`}>
-          <CheckCircle2 className="w-4 h-4" />
+          <CheckCircle2 className="w-4 h-4 shrink-0" />
           <span>{notification.message}</span>
         </div>
       )}
@@ -137,19 +193,27 @@ export default function AdminAuditoria({ state, onUpdateState }: AdminAuditoriaP
         <div>
           <div className="flex items-center gap-2 mb-1">
             <ShieldCheck className="w-5 h-5 text-[#5A5A40]" />
-            <h3 className="font-extrabold text-gray-900 text-base">Auditoria & Backups do Sistema</h3>
+            <h3 className="font-extrabold text-gray-900 text-base">Auditoria, Memória & Backups</h3>
           </div>
           <p className="text-xs text-gray-500">
-            Acompanhe o histórico de alterações em produtos e gerencie a rotina de backup periódico no navegador.
+            Acompanhe alterações em produtos e gerencie o espaço de memória e backups de segurança.
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
           <button
-            onClick={handleManualBackup}
+            onClick={handleClearBrowserMemory}
+            className="bg-white hover:bg-rose-50 text-rose-700 border border-rose-200 px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs"
+            title="Esvazia todo cache de backup local do navegador"
+          >
+            <Trash className="w-3.5 h-3.5" /> Limpar Memória do Navegador
+          </button>
+
+          <button
+            onClick={handleDownloadBackup}
             className="bg-[#5A5A40] hover:bg-[#484833] text-white px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs"
           >
-            <Database className="w-3.5 h-3.5" /> Criar Backup Agora
+            <Download className="w-3.5 h-3.5" /> Baixar Backup (.json)
           </button>
         </div>
       </div>
@@ -158,12 +222,24 @@ export default function AdminAuditoria({ state, onUpdateState }: AdminAuditoriaP
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-white p-4 rounded-2xl border border-[#e0e0d6] shadow-xs flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold">
-            <ShieldCheck className="w-5 h-5" />
+            <Cloud className="w-5 h-5" />
           </div>
           <div>
-            <span className="text-[10px] text-gray-400 font-bold uppercase block">Status do Backup</span>
+            <span className="text-[10px] text-gray-400 font-bold uppercase block">Banco de Dados na Nuvem</span>
             <span className="text-xs font-bold text-emerald-700 flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" /> Automático (Diário às 00:00)
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" /> Firebase Firestore Ativo
+            </span>
+          </div>
+        </div>
+
+        <div className="bg-white p-4 rounded-2xl border border-[#e0e0d6] shadow-xs flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center font-bold">
+            <HardDrive className="w-5 h-5" />
+          </div>
+          <div>
+            <span className="text-[10px] text-gray-400 font-bold uppercase block">Memória do Navegador</span>
+            <span className="text-xs font-extrabold text-blue-900">
+              {storageInfo.usedMb} MB de 5 MB ({100 - storageInfo.percent}% livre)
             </span>
           </div>
         </div>
@@ -175,16 +251,6 @@ export default function AdminAuditoria({ state, onUpdateState }: AdminAuditoriaP
           <div>
             <span className="text-[10px] text-gray-400 font-bold uppercase block">Logs de Auditoria</span>
             <span className="text-sm font-extrabold text-gray-800">{auditLogs.length} eventos gravados</span>
-          </div>
-        </div>
-
-        <div className="bg-white p-4 rounded-2xl border border-[#e0e0d6] shadow-xs flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center font-bold">
-            <Database className="w-5 h-5" />
-          </div>
-          <div>
-            <span className="text-[10px] text-gray-400 font-bold uppercase block">Pontos de Restauração</span>
-            <span className="text-sm font-extrabold text-gray-800">{backups.length} snapshots salvos</span>
           </div>
         </div>
       </div>
@@ -199,7 +265,7 @@ export default function AdminAuditoria({ state, onUpdateState }: AdminAuditoriaP
               : "border-transparent text-gray-400 hover:text-gray-600"
           }`}
         >
-          <History className="w-4 h-4" /> Log de Auditoria de Produtos ({auditLogs.length})
+          <History className="w-4 h-4" /> Log de Auditoria ({auditLogs.length})
         </button>
 
         <button
@@ -210,14 +276,13 @@ export default function AdminAuditoria({ state, onUpdateState }: AdminAuditoriaP
               : "border-transparent text-gray-400 hover:text-gray-600"
           }`}
         >
-          <Database className="w-4 h-4" /> Histórico de Backups Periódicos ({backups.length})
+          <Database className="w-4 h-4" /> Memória do Navegador & Backups
         </button>
       </div>
 
       {/* TAB 1: AUDIT LOGS */}
       {activeTab === "logs" && (
         <div className="bg-white rounded-2xl border border-[#e0e0d6] shadow-xs overflow-hidden">
-          
           {/* Controls Bar */}
           <div className="p-4 border-b border-[#f0f0e8] bg-gray-50/50 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
             <div className="relative flex-1 max-w-md">
@@ -304,77 +369,137 @@ export default function AdminAuditoria({ state, onUpdateState }: AdminAuditoriaP
         </div>
       )}
 
-      {/* TAB 2: PERIODIC BACKUPS */}
+      {/* TAB 2: BROWSER MEMORY & BACKUPS */}
       {activeTab === "backups" && (
-        <div className="bg-white rounded-2xl border border-[#e0e0d6] shadow-xs p-5 space-y-4">
-          <div className="flex justify-between items-center pb-3 border-b border-[#f0f0e8]">
-            <div>
-              <h4 className="font-extrabold text-gray-900 text-xs uppercase tracking-wider">Pontos de Restauração em Memória Local</h4>
-              <p className="text-[11px] text-gray-500">
-                O sistema salva uma cópia periódica do estado completo do banco de dados no seu navegador.
+        <div className="space-y-5">
+          {/* Status Alert Banner */}
+          <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 flex items-start gap-3.5">
+            <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
+              <Sparkles className="w-5 h-5 text-emerald-700" />
+            </div>
+            <div className="space-y-1">
+              <h4 className="font-extrabold text-emerald-950 text-sm">
+                Backup na memória do navegador desativado com sucesso
+              </h4>
+              <p className="text-xs text-emerald-800 leading-relaxed">
+                Para garantir que o navegador <strong>nunca fique cheio</strong> e que suas edições e alterações sejam salvas sem nenhum bloqueio ou travamento, o backup automático que ocupava a memória do navegador foi desativado.
+              </p>
+              <p className="text-[11px] text-emerald-700 font-medium pt-1">
+                ☁️ <strong>Seus dados estão 100% seguros na nuvem:</strong> Todas as alterações de produtos, fotos, estoques e pedidos são salvas de forma instantânea e permanente no <strong>Firebase Firestore</strong>, que não possui o limite de 5 MB dos navegadores.
               </p>
             </div>
-
-            {backups.length > 0 && (
-              <button
-                onClick={handleClearBackups}
-                className="text-xs text-rose-600 hover:text-rose-800 font-bold transition flex items-center gap-1"
-              >
-                <Trash className="w-3.5 h-3.5" /> Limpar Histórico
-              </button>
-            )}
           </div>
 
-          {backups.length === 0 ? (
-            <div className="p-8 text-center bg-gray-50 rounded-xl border border-dashed border-gray-200">
-              <Database className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-              <p className="text-xs font-bold text-gray-500">Nenhum ponto de restauração periódico encontrado ainda.</p>
+          {/* Memory Management Card */}
+          <div className="bg-white rounded-2xl border border-[#e0e0d6] shadow-xs p-5 space-y-4">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-3 border-b border-[#f0f0e8]">
+              <div>
+                <h4 className="font-extrabold text-gray-900 text-xs uppercase tracking-wider">
+                  Saúde e Ocupação da Memória do Navegador
+                </h4>
+                <p className="text-[11px] text-gray-500">
+                  O navegador reserva no máximo 5 MB para dados temporários. Mantenha esta barra sempre verde.
+                </p>
+              </div>
+
               <button
-                onClick={handleManualBackup}
-                className="mt-3 bg-[#5A5A40] text-white px-3 py-1.5 rounded-xl text-xs font-bold inline-flex items-center gap-1"
+                onClick={handleClearBrowserMemory}
+                className="text-xs text-rose-600 hover:text-rose-800 font-bold transition flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-rose-200 hover:bg-rose-50"
               >
-                Gerar Primeiro Backup
+                <Trash className="w-3.5 h-3.5" /> Limpar Toda Memória Local
               </button>
             </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {backups.map((snap, idx) => (
-                <div
-                  key={snap.id}
-                  className={`p-4 rounded-xl border flex items-center justify-between gap-3 shadow-xs transition ${
-                    idx === 0 
-                      ? "border-emerald-200 bg-emerald-50/40" 
-                      : "border-amber-200 bg-amber-50/30"
-                  }`}
-                >
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${
-                        idx === 0 
-                          ? "bg-emerald-100 text-emerald-800 border border-emerald-300" 
-                          : "bg-amber-100 text-amber-800 border border-amber-300"
-                      }`}>
-                        {idx === 0 ? "🟢 Último Backup (Mais Recente)" : "🟡 Penúltimo Backup (Anterior)"}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 pt-1">
-                      <span className="font-mono text-xs font-bold text-gray-800">{snap.formattedDate}</span>
-                    </div>
-                    <div className="flex items-center gap-3 text-[11px] text-gray-500 font-medium">
-                      <span>📦 {snap.productCount} produtos</span>
-                      <span>🛒 {snap.orderCount} pedidos</span>
-                      <span>📁 {snap.categoryCount} categorias</span>
-                    </div>
-                  </div>
 
-                  <button
-                    onClick={() => handleRestoreBackupPoint(snap)}
-                    className="bg-white hover:bg-amber-100 text-amber-900 border border-amber-300 px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1 shrink-0 shadow-2xs"
-                  >
-                    <RotateCcw className="w-3.5 h-3.5 text-amber-700" /> Restaurar
-                  </button>
+            {/* Storage Progress Bar */}
+            <div className="space-y-2 bg-gray-50 p-4 rounded-xl border border-gray-100">
+              <div className="flex justify-between text-xs font-bold">
+                <span className="text-gray-600">Espaço Utilizado: {storageInfo.usedMb} MB de {storageInfo.totalMb} MB</span>
+                <span className={storageInfo.percent > 70 ? "text-rose-600" : "text-emerald-700"}>
+                  {storageInfo.percent}% ocupado ({100 - storageInfo.percent}% livre)
+                </span>
+              </div>
+              <div className="w-full bg-gray-200 h-2.5 rounded-full overflow-hidden">
+                <div 
+                  className={`h-full rounded-full transition-all duration-500 ${
+                    storageInfo.percent > 80 
+                      ? "bg-rose-500" 
+                      : storageInfo.percent > 50 
+                        ? "bg-amber-500" 
+                        : "bg-emerald-500"
+                  }`} 
+                  style={{ width: `${Math.max(2, storageInfo.percent)}%` }} 
+                />
+              </div>
+            </div>
+
+            {/* File Backup Options (Zero LocalStorage Usage) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+              <div className="p-4 rounded-xl border border-gray-200 bg-gray-50/50 space-y-2">
+                <div className="flex items-center gap-2 font-bold text-xs text-gray-800">
+                  <Download className="w-4 h-4 text-[#5A5A40]" />
+                  <span>Baixar Backup Completo em Arquivo (.json)</span>
                 </div>
-              ))}
+                <p className="text-[11px] text-gray-500">
+                  Baixa um arquivo com todos os dados da loja diretamente para o seu computador ou celular. <strong>Não gasta nenhum byte da memória do navegador!</strong>
+                </p>
+                <button
+                  onClick={handleDownloadBackup}
+                  className="w-full bg-[#5A5A40] hover:bg-[#484833] text-white px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 shadow-xs mt-2"
+                >
+                  <Download className="w-3.5 h-3.5" /> Baixar Arquivo JSON de Backup
+                </button>
+              </div>
+
+              <div className="p-4 rounded-xl border border-gray-200 bg-gray-50/50 space-y-2">
+                <div className="flex items-center gap-2 font-bold text-xs text-gray-800">
+                  <Upload className="w-4 h-4 text-blue-600" />
+                  <span>Restaurar a Loja a partir de um Arquivo (.json)</span>
+                </div>
+                <p className="text-[11px] text-gray-500">
+                  Se você tiver um arquivo de backup baixado anteriormente, você pode restaurá-lo diretamente sem risco de lotar o navegador.
+                </p>
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full bg-white hover:bg-blue-50 text-blue-700 border border-blue-200 px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 shadow-2xs mt-2"
+                >
+                  <Upload className="w-3.5 h-3.5" /> Selecionar Arquivo para Restaurar
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Any remaining historical snapshots */}
+          {backups.length > 0 && (
+            <div className="bg-white rounded-2xl border border-[#e0e0d6] shadow-xs p-5 space-y-3">
+              <div className="flex justify-between items-center pb-2 border-b border-[#f0f0e8]">
+                <h4 className="font-extrabold text-gray-900 text-xs uppercase tracking-wider">
+                  Backups Anteriores Restantes na Memória
+                </h4>
+                <button
+                  onClick={handleClearBrowserMemory}
+                  className="text-xs text-rose-600 hover:text-rose-800 font-bold transition"
+                >
+                  Excluir Todos
+                </button>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {backups.map((snap) => (
+                  <div key={snap.id} className="p-3.5 rounded-xl border border-gray-200 bg-gray-50 flex items-center justify-between gap-3">
+                    <div className="text-xs space-y-1">
+                      <span className="font-mono font-bold text-gray-800">{snap.formattedDate}</span>
+                      <div className="text-[11px] text-gray-500">
+                        {snap.productCount} produtos · {snap.orderCount} pedidos
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleRestoreBackupPoint(snap)}
+                      className="bg-white hover:bg-amber-50 text-amber-900 border border-amber-300 px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-2xs"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5 text-amber-700" /> Restaurar
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>
