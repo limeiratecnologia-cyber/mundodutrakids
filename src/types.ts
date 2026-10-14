@@ -21,6 +21,7 @@ export interface Product {
   status: "ativo" | "inativo";
   description: string;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface Category {

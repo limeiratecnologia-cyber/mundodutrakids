@@ -69,13 +69,20 @@ export default function AdminLayout({ state, onUpdateState, onBackToStore }: Adm
 
   const handleEditProduct = (updated: Product) => {
     const oldProduct = products.find(p => p.id === updated.id);
+    const finalProduct: Product = {
+      ...updated,
+      updatedAt: updated.updatedAt || new Date().toISOString()
+    };
     const changes: string[] = [];
     if (oldProduct) {
-      if (oldProduct.price !== updated.price) changes.push(`Preço: R$ ${(oldProduct.price || 0).toFixed(2)} ➔ R$ ${(updated.price || 0).toFixed(2)}`);
-      if (oldProduct.name !== updated.name) changes.push(`Nome: "${oldProduct.name}" ➔ "${updated.name}"`);
-      if (oldProduct.status !== updated.status) changes.push(`Status: ${oldProduct.status} ➔ ${updated.status}`);
+      if (oldProduct.price !== finalProduct.price) changes.push(`Preço: R$ ${(oldProduct.price || 0).toFixed(2)} ➔ R$ ${(finalProduct.price || 0).toFixed(2)}`);
+      if (oldProduct.name !== finalProduct.name) changes.push(`Nome: "${oldProduct.name}" ➔ "${finalProduct.name}"`);
+      if ((oldProduct.gender || oldProduct.section) !== (finalProduct.gender || finalProduct.section)) {
+        changes.push(`Sessão: ${oldProduct.gender || oldProduct.section || "menino"} ➔ ${finalProduct.gender || finalProduct.section}`);
+      }
+      if (oldProduct.status !== finalProduct.status) changes.push(`Status: ${oldProduct.status} ➔ ${finalProduct.status}`);
       const oldStock = (oldProduct.sizes || []).reduce((acc, s) => acc + s.stock, 0);
-      const newStock = (updated.sizes || []).reduce((acc, s) => acc + s.stock, 0);
+      const newStock = (finalProduct.sizes || []).reduce((acc, s) => acc + s.stock, 0);
       if (oldStock !== newStock) changes.push(`Estoque: ${oldStock} ➔ ${newStock} un`);
     }
     const details = changes.length > 0 ? changes.join(" | ") : "Produto atualizado";
@@ -84,18 +91,18 @@ export default function AdminLayout({ state, onUpdateState, onBackToStore }: Adm
       id: `log-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       timestamp: new Date().toISOString(),
       action: "update",
-      productName: updated.name,
-      productId: updated.id,
+      productName: finalProduct.name,
+      productId: finalProduct.id,
       details,
       user: "Admin"
     };
     const updatedLogs = [logEntry, ...(state.auditLogs || [])].slice(0, 150);
 
     // Direct sync to Firebase products collection
-    syncSingleProductToFirebase(updated);
+    syncSingleProductToFirebase(finalProduct);
 
     onUpdateState({
-      products: products.map(p => p.id === updated.id ? updated : p),
+      products: products.map(p => p.id === finalProduct.id ? finalProduct : p),
       auditLogs: updatedLogs
     });
   };

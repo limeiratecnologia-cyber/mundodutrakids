@@ -221,6 +221,65 @@ export const getDefaultState = (): SystemState => {
   };
 };
 
+/**
+ * Merges local and cloud products intelligently:
+ * If a local product was edited more recently than the cloud version,
+ * keep the local product so that cloud lag or quota restrictions never overwrite recent user edits!
+ */
+export function mergeProductsSmartly(localProducts: Product[] = [], cloudProducts: Product[] = []): Product[] {
+  if (!cloudProducts || cloudProducts.length === 0) return localProducts || [];
+  if (!localProducts || localProducts.length === 0) return cloudProducts || [];
+
+  const localMap = new Map<string, Product>();
+  for (const p of localProducts) {
+    if (p && p.id) {
+      localMap.set(p.id, p);
+    }
+  }
+
+  const result: Product[] = [];
+  const processedIds = new Set<string>();
+
+  for (const cloudP of cloudProducts) {
+    if (!cloudP || !cloudP.id) continue;
+    processedIds.add(cloudP.id);
+    const localP = localMap.get(cloudP.id);
+    if (!localP) {
+      const session = cloudP.gender || cloudP.section || "menino";
+      result.push({
+        ...cloudP,
+        gender: session,
+        section: session
+      });
+    } else {
+      const localTime = localP.updatedAt ? new Date(localP.updatedAt).getTime() : 0;
+      const cloudTime = cloudP.updatedAt ? new Date(cloudP.updatedAt).getTime() : 0;
+      
+      // If local was edited more recently, keep local edit so user changes are never lost!
+      if (localTime > cloudTime) {
+        result.push(localP);
+      } else {
+        const session = cloudP.gender || cloudP.section || localP.gender || "menino";
+        result.push({
+          ...cloudP,
+          gender: session,
+          section: session,
+          updatedAt: cloudP.updatedAt || localP.updatedAt
+        });
+      }
+    }
+  }
+
+  // Include any local products that might not yet be in cloud (e.g. newly created)
+  for (const localP of localProducts) {
+    if (localP && localP.id && !processedIds.has(localP.id)) {
+      result.push(localP);
+    }
+  }
+
+  return result;
+}
+
 export const mergeWithDefaults = (parsed: any): SystemState => {
   const defaults = getDefaultState();
 
@@ -230,7 +289,8 @@ export const mergeWithDefaults = (parsed: any): SystemState => {
     return {
       ...p,
       gender: session,
-      section: session
+      section: session,
+      updatedAt: p.updatedAt
     };
   });
 

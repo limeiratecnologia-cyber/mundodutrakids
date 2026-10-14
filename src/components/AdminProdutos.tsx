@@ -357,7 +357,8 @@ export default function AdminProdutos({ products, categories, onAddProduct, onEd
     const updated: Product = {
       ...prod,
       gender: newSession,
-      section: newSession
+      section: newSession,
+      updatedAt: new Date().toISOString()
     };
     onEditProduct(updated);
     triggerNotification(`Sessão do produto alterada para ${newSession === "menino" ? "Menino 👦" : newSession === "menina" ? "Menina 👧" : "Ambos / Unissex ✨"}!`);
@@ -478,10 +479,11 @@ export default function AdminProdutos({ products, categories, onAddProduct, onEd
         age: age || "Livre / Todos",
         description: description || `Vestuário infantil ${name.trim()} com excelente acabamento e alto conforto.`,
         status,
-        sizes: sizeGrid
+        sizes: sizeGrid,
+        updatedAt: new Date().toISOString()
       };
       onEditProduct(updated);
-      triggerNotification("Produto atualizado com sucesso!");
+      triggerNotification(`Produto atualizado com sucesso! Sessão salva: ${finalGender === "menino" ? "Menino 👦" : finalGender === "menina" ? "Menina 👧" : "Ambos / Unissex ✨"}`);
     } else {
       const newProduct: Product = {
         id: `prod-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,

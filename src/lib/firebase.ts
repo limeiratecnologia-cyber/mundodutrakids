@@ -146,12 +146,13 @@ export async function sanitizeProductForCloud(product: Product): Promise<Product
     image: mainImg,
     images: uniqueImgs.slice(0, 8),
     gender: sessionValue,
-    section: sessionValue
+    section: sessionValue,
+    updatedAt: product.updatedAt || new Date().toISOString()
   });
 }
 
 /**
- * Saves a single product directly into the 'products' collection in Firestore
+ * Saves a single product directly into the 'products' collection in Firestore (uses exactly 1 write unit)
  */
 export async function syncSingleProductToFirebase(product: Product) {
   try {
@@ -159,8 +160,32 @@ export async function syncSingleProductToFirebase(product: Product) {
     const docRef = doc(db, PRODUCTS_COLLECTION, sanitized.id);
     await setDoc(docRef, sanitized, { merge: true });
     console.log(`[Firebase] Product ${product.id} synced directly (session: ${sanitized.gender}).`);
+  } catch (err: any) {
+    if (err?.code === "resource-exhausted" || (err?.message && err.message.includes("Quota limit exceeded"))) {
+      console.warn(`[Firebase] Quota limit reached today for product ${product.id}. Local copy preserved safely.`);
+    } else {
+      handleFirestoreError(err, OperationType.WRITE, `${PRODUCTS_COLLECTION}/${product.id}`);
+    }
+  }
+}
+
+/**
+ * Saves all products in atomic batch (only for manual import/restore, NOT on normal state updates)
+ */
+export async function syncAllProductsToFirebase(products: Product[]) {
+  if (!Array.isArray(products) || products.length === 0) return;
+  try {
+    const batch = writeBatch(db);
+    for (const p of products) {
+      if (!p || !p.id) continue;
+      const sanitized = await sanitizeProductForCloud(p);
+      const prodDocRef = doc(db, PRODUCTS_COLLECTION, sanitized.id);
+      batch.set(prodDocRef, sanitized, { merge: true });
+    }
+    await batch.commit();
+    console.log(`[Firebase] All ${products.length} products synced to cloud.`);
   } catch (err) {
-    handleFirestoreError(err, OperationType.WRITE, `${PRODUCTS_COLLECTION}/${product.id}`);
+    console.warn("[Firebase] Bulk products sync notice:", err);
   }
 }
 
@@ -206,7 +231,8 @@ let isSaving = false;
 let pendingStateToSave: any = null;
 
 /**
- * Internal worker that performs batched writes to Firestore
+ * Internal worker that performs single-document store config write to Firestore (1 single write unit!)
+ * Individual products are synced independently via syncSingleProductToFirebase to avoid burning daily quota!
  */
 async function performBatchedStateSave(state: any) {
   if (isSaving) {
@@ -218,20 +244,6 @@ async function performBatchedStateSave(state: any) {
 
   try {
     const cleanedState = cleanUndefined(state);
-
-    // 1. Write products using atomic writeBatch (up to 500 per batch, single write stream request)
-    if (Array.isArray(cleanedState.products) && cleanedState.products.length > 0) {
-      const batch = writeBatch(db);
-      
-      for (const p of cleanedState.products) {
-        if (!p || !p.id) continue;
-        const sanitized = await sanitizeProductForCloud(p);
-        const prodDocRef = doc(db, PRODUCTS_COLLECTION, sanitized.id);
-        batch.set(prodDocRef, sanitized, { merge: true });
-      }
-
-      await batch.commit();
-    }
 
     // 2. Prepare store configurations
     const configData: any = {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { getInitialState, saveState, mergeWithDefaults } from "./initialState";
+import { getInitialState, saveState, mergeWithDefaults, mergeProductsSmartly } from "./initialState";
 import { SystemState, Order } from "./types";
 import StoreFront from "./components/StoreFront";
 import AdminLayout from "./components/AdminLayout";
@@ -59,10 +59,17 @@ export default function App() {
       if (firebaseState && ((Array.isArray(firebaseState.products) && firebaseState.products.length > 0) || Object.keys(firebaseState).length > 2)) {
         hasLoadedCloudData = true;
         setState((prevState) => {
+          const incomingProducts = Array.isArray(firebaseState.products) && firebaseState.products.length > 0 
+            ? firebaseState.products 
+            : prevState.products;
+          
+          // Reconcile products smartly so recent edits are never reverted by cloud lag
+          const smartProducts = mergeProductsSmartly(prevState.products, incomingProducts);
+
           const merged = mergeWithDefaults({
             ...prevState,
             ...firebaseState,
-            products: Array.isArray(firebaseState.products) && firebaseState.products.length > 0 ? firebaseState.products : prevState.products,
+            products: smartProducts,
             categories: Array.isArray(firebaseState.categories) && firebaseState.categories.length > 0 ? firebaseState.categories : prevState.categories,
           });
           saveState(merged); // Cache locally for offline backup
